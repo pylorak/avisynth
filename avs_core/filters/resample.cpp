@@ -422,9 +422,9 @@ static void resize_h_pointresize(BYTE* dst, const BYTE* src, int dst_pitch, int 
   }
 }
 
-static void resize_h_prepare_coeff_8(ResamplingProgram* p) {
+static void resize_h_prepare_coeff_8(ResamplingProgram* p, IScriptEnvironment2* env) {
   int filter_size = AlignNumber(p->filter_size, 8);
-  short* new_coeff = (short*) _aligned_malloc(sizeof(short) * p->target_size * filter_size, 64);
+  short* new_coeff = (short*) env->Allocate(sizeof(short) * p->target_size * filter_size, 64, AVS_NORMAL_ALLOC);
   memset(new_coeff, 0, sizeof(short) * p->target_size * filter_size);
 
   // Copy coeff
@@ -438,7 +438,7 @@ static void resize_h_prepare_coeff_8(ResamplingProgram* p) {
     src += p->filter_size;
   }
 
-  _aligned_free(p->pixel_coefficient);
+  env->Free(p->pixel_coefficient);
   p->pixel_coefficient = new_coeff;
 }
 
@@ -643,12 +643,10 @@ extern const AVSFunction Resample_filters[] = {
 FilteredResizeH::FilteredResizeH( PClip _child, double subrange_left, double subrange_width,
                                   int target_width, ResamplingFunction* func, IScriptEnvironment* env )
   : GenericVideoFilter(_child),
-  Env(static_cast<IScriptEnvironment2*>(env)),
   resampling_program_luma(0), resampling_program_chroma(0),
   src_pitch_table_luma(0),
   src_pitch_luma(-1),
-  filter_storage_luma(0), filter_storage_chroma(0),
-  temp_1(0), temp_2(0)
+  filter_storage_luma(0), filter_storage_chroma(0)
 {
   src_width  = vi.width;
   src_height = vi.height;
@@ -666,8 +664,10 @@ FilteredResizeH::FilteredResizeH( PClip _child, double subrange_left, double sub
       env->ThrowError("Resize: Planar destination height must be a multiple of %d.", mask+1);
   }
 
+  auto env2 = static_cast<IScriptEnvironment2*>(env);
+
   // Main resampling program
-  resampling_program_luma = func->GetResamplingProgram(vi.width, subrange_left, subrange_width, target_width, Env);
+  resampling_program_luma = func->GetResamplingProgram(vi.width, subrange_left, subrange_width, target_width, env2);
   if (vi.IsPlanar() && !vi.IsY8()) {
     const int shift = vi.GetPlaneWidthSubsampling(PLANAR_U);
     const int shift_h = vi.GetPlaneHeightSubsampling(PLANAR_U);
@@ -679,7 +679,7 @@ FilteredResizeH::FilteredResizeH( PClip _child, double subrange_left, double sub
       subrange_left   / div,
       subrange_width  / div,
       target_width   >> shift,
-      Env);
+      env2);
   }
 
   fast_resize = (env->GetCPUFlags() & CPUF_SSSE3) == CPUF_SSSE3 && vi.IsPlanar() && target_width%4 == 0;
@@ -692,7 +692,7 @@ FilteredResizeH::FilteredResizeH( PClip _child, double subrange_left, double sub
     }
   }
 
-  if (resampling_program_luma->filter_size == 1 && vi.IsPlanar()) {
+  if (false && resampling_program_luma->filter_size == 1 && vi.IsPlanar()) {
     fast_resize = true;
     resampler_h_luma = resize_h_pointresize;
     resampler_h_chroma = resize_h_pointresize;
@@ -705,11 +705,9 @@ FilteredResizeH::FilteredResizeH( PClip _child, double subrange_left, double sub
       resampler_chroma = FilteredResizeV::GetResampler(env->GetCPUFlags(), true, filter_storage_chroma, resampling_program_chroma);
     }
 
-    // Allocate temporary byte buffer (frame is transposed)
+    // Temporary buffer size
     temp_1_pitch = AlignNumber(vi.BytesFromPixels(src_height), 64);
-    temp_1 = (BYTE*) Env->Allocate(temp_1_pitch * src_width, 64, AVS_NORMAL_ALLOC);
     temp_2_pitch = AlignNumber(vi.BytesFromPixels(dst_height), 64);
-    temp_2 = (BYTE*) Env->Allocate(temp_2_pitch * dst_width, 64, AVS_NORMAL_ALLOC);
 
     resize_v_create_pitch_table(src_pitch_table_luma, temp_1_pitch, src_width);
 
@@ -735,10 +733,10 @@ FilteredResizeH::FilteredResizeH( PClip _child, double subrange_left, double sub
       }
     }
   } else { // Plannar + SSSE3 = use new horizontal resizer routines
-    resampler_h_luma = GetResampler(env->GetCPUFlags(), true, resampling_program_luma);
+    resampler_h_luma = GetResampler(env->GetCPUFlags(), true, resampling_program_luma, env2);
 
     if (!vi.IsY8()) {
-      resampler_h_chroma = GetResampler(env->GetCPUFlags(), true, resampling_program_chroma);
+      resampler_h_chroma = GetResampler(env->GetCPUFlags(), true, resampling_program_chroma, env2);
     }
   }
 
@@ -751,7 +749,12 @@ PVideoFrame __stdcall FilteredResizeH::GetFrame(int n, IScriptEnvironment* env)
   PVideoFrame src = child->GetFrame(n, env);
   PVideoFrame dst = env->NewVideoFrame(vi);
 
+  auto env2 = static_cast<IScriptEnvironment2*>(env);
+
   if (!fast_resize) {
+    BYTE* temp_1 = static_cast<BYTE*>(env2->Allocate(temp_1_pitch * src_width, 64, AVS_POOLED_ALLOC));
+    BYTE* temp_2 = static_cast<BYTE*>(env2->Allocate(temp_2_pitch * dst_width, 64, AVS_POOLED_ALLOC));
+
     if (!vi.IsRGB()) {
       // Y Plane
       turn_right(src->GetReadPtr(), temp_1, src_width, src_height, src->GetPitch(), temp_1_pitch);
@@ -783,6 +786,9 @@ PVideoFrame __stdcall FilteredResizeH::GetFrame(int n, IScriptEnvironment* env)
       resampler_luma(temp_2, temp_1, temp_2_pitch, temp_1_pitch, resampling_program_luma, vi.BytesFromPixels(src_height), dst_width, src_pitch_table_luma, filter_storage_luma);
       turn_left(temp_2, dst->GetWritePtr(), vi.BytesFromPixels(dst_height), dst_width, temp_2_pitch, dst->GetPitch());
     }
+
+    env2->Free(temp_1);
+    env2->Free(temp_2);
   } else {
     // Y Plane
     resampler_h_luma(dst->GetWritePtr(), src->GetReadPtr(), dst->GetPitch(), src->GetPitch(), resampling_program_luma, dst_width, dst_height);
@@ -802,10 +808,10 @@ PVideoFrame __stdcall FilteredResizeH::GetFrame(int n, IScriptEnvironment* env)
   return dst;
 }
 
-ResamplerH FilteredResizeH::GetResampler(int CPU, bool aligned, ResamplingProgram* program)
+ResamplerH FilteredResizeH::GetResampler(int CPU, bool aligned, ResamplingProgram* program, IScriptEnvironment2* env)
 {
   if (CPU & CPUF_SSSE3) {
-    resize_h_prepare_coeff_8(program);
+    resize_h_prepare_coeff_8(program, env);
     if (program->filter_size > 8)
       return resizer_h_ssse3_generic;
     else
@@ -820,12 +826,6 @@ FilteredResizeH::~FilteredResizeH(void)
   if (resampling_program_luma)   { delete resampling_program_luma; }
   if (resampling_program_chroma) { delete resampling_program_chroma; }
   if (src_pitch_table_luma)    { delete[] src_pitch_table_luma; }
-
-  if (filter_storage_luma) { Env->Free(filter_storage_luma); }
-  if (filter_storage_chroma) { Env->Free(filter_storage_chroma); }
-
-  if (temp_1) { Env->Free(temp_1); }
-  if (temp_2) { Env->Free(temp_2); }
 }
 
 /***************************************
@@ -835,10 +835,7 @@ FilteredResizeH::~FilteredResizeH(void)
 FilteredResizeV::FilteredResizeV( PClip _child, double subrange_top, double subrange_height,
                                   int target_height, ResamplingFunction* func, IScriptEnvironment* env )
   : GenericVideoFilter(_child),
-    Env(static_cast<IScriptEnvironment2*>(env)),
     resampling_program_luma(0), resampling_program_chroma(0),
-    src_pitch_table_luma(0), src_pitch_table_chromaU(0), src_pitch_table_chromaV(0),
-    src_pitch_luma(-1), src_pitch_chromaU(-1), src_pitch_chromaV(-1),
     filter_storage_luma_aligned(0), filter_storage_luma_unaligned(0),
     filter_storage_chroma_aligned(0), filter_storage_chroma_unaligned(0)
 {
@@ -852,12 +849,13 @@ FilteredResizeV::FilteredResizeV( PClip _child, double subrange_top, double subr
       env->ThrowError("Resize: Planar destination height must be a multiple of %d.", mask+1);
   }
 
+  auto env2 = static_cast<IScriptEnvironment2*>(env);
+
   if (vi.IsRGB())
     subrange_top = vi.height - subrange_top - subrange_height; // why?
 
   // Create resampling program and pitch table
-  resampling_program_luma  = func->GetResamplingProgram(vi.height, subrange_top, subrange_height, target_height, Env);
-  src_pitch_table_luma     = new int[vi.height];
+  resampling_program_luma  = func->GetResamplingProgram(vi.height, subrange_top, subrange_height, target_height, env2);
   resampler_luma_aligned   = GetResampler(env->GetCPUFlags(), true , filter_storage_luma_aligned,   resampling_program_luma);
   resampler_luma_unaligned = GetResampler(env->GetCPUFlags(), false, filter_storage_luma_unaligned, resampling_program_luma);
 
@@ -870,9 +868,8 @@ FilteredResizeV::FilteredResizeV( PClip _child, double subrange_top, double subr
                                   subrange_top    / div,
                                   subrange_height / div,
                                   target_height  >> shift,
-                                  Env);
-    src_pitch_table_chromaU    = new int[vi.height >> shift];
-    src_pitch_table_chromaV    = new int[vi.height >> shift];
+                                  env2);
+
     resampler_chroma_aligned   = GetResampler(env->GetCPUFlags(), true , filter_storage_chroma_aligned,   resampling_program_chroma);
     resampler_chroma_unaligned = GetResampler(env->GetCPUFlags(), false, filter_storage_chroma_unaligned, resampling_program_chroma);
   }
@@ -890,20 +887,20 @@ PVideoFrame __stdcall FilteredResizeV::GetFrame(int n, IScriptEnvironment* env)
   const BYTE* srcp = src->GetReadPtr();
         BYTE* dstp = dst->GetWritePtr();
 
+  auto env2 = static_cast<IScriptEnvironment2*>(env);
+
   // Create pitch table
-  if (src_pitch_luma != src->GetPitch()) {
-    src_pitch_luma = src->GetPitch();
-    resize_v_create_pitch_table(src_pitch_table_luma, src_pitch_luma, src->GetHeight());
-  }
+  int* src_pitch_table_luma = static_cast<int*>(env2->Allocate(sizeof(int) * src->GetHeight(), 16, AVS_POOLED_ALLOC));
+  resize_v_create_pitch_table(src_pitch_table_luma, src->GetPitch(), src->GetHeight());
 
-  if ((!vi.IsY8() && vi.IsPlanar()) && src_pitch_chromaU != src->GetPitch(PLANAR_U)) {
-    src_pitch_chromaU = src->GetPitch(PLANAR_U);
-    resize_v_create_pitch_table(src_pitch_table_chromaU, src_pitch_chromaU, src->GetHeight(PLANAR_U));
-  }
+  int* src_pitch_table_chromaU;
+  int* src_pitch_table_chromaV;
+  if ((!vi.IsY8() && vi.IsPlanar())) {
+    src_pitch_table_chromaU = static_cast<int*>(env2->Allocate(sizeof(int) * src->GetHeight(PLANAR_U), 16, AVS_POOLED_ALLOC));
+    resize_v_create_pitch_table(src_pitch_table_chromaU, src->GetPitch(PLANAR_U), src->GetHeight(PLANAR_U));
 
-  if ((!vi.IsY8() && vi.IsPlanar()) && src_pitch_chromaV != src->GetPitch(PLANAR_V)) {
-    src_pitch_chromaV = src->GetPitch(PLANAR_V);
-    resize_v_create_pitch_table(src_pitch_table_chromaV, src_pitch_chromaV, src->GetHeight(PLANAR_V));
+    src_pitch_table_chromaV = static_cast<int*>(env2->Allocate(sizeof(int) * src->GetHeight(PLANAR_V), 16, AVS_POOLED_ALLOC));
+    resize_v_create_pitch_table(src_pitch_table_chromaV, src->GetPitch(PLANAR_V), src->GetHeight(PLANAR_V));
   }
 
   // Do resizing
@@ -937,6 +934,13 @@ PVideoFrame __stdcall FilteredResizeV::GetFrame(int n, IScriptEnvironment* env)
       resampler_chroma_aligned(dstp, srcp, dst_pitch, src_pitch, resampling_program_chroma, width, height, src_pitch_table_chromaV, filter_storage_chroma_unaligned);
     else
       resampler_chroma_unaligned(dstp, srcp, dst_pitch, src_pitch, resampling_program_chroma, width, height, src_pitch_table_chromaV, filter_storage_chroma_unaligned);
+  }
+
+  // Free pitch table
+  env2->Free(src_pitch_table_luma);
+  if (!vi.IsY8() && vi.IsPlanar()) {
+    env2->Free(src_pitch_table_chromaU);
+    env2->Free(src_pitch_table_chromaV);
   }
 
   return dst;
@@ -983,14 +987,6 @@ FilteredResizeV::~FilteredResizeV(void)
 {
   if (resampling_program_luma)   { delete resampling_program_luma; }
   if (resampling_program_chroma) { delete resampling_program_chroma; }
-  if (src_pitch_table_luma)    { delete[] src_pitch_table_luma; }
-  if (src_pitch_table_chromaU) { delete[] src_pitch_table_chromaU; }
-  if (src_pitch_table_chromaV) { delete[] src_pitch_table_chromaV; }
-
-  if (filter_storage_luma_aligned) { Env->Free(filter_storage_luma_aligned); }
-  if (filter_storage_luma_unaligned) { Env->Free(filter_storage_luma_unaligned); }
-  if (filter_storage_chroma_aligned) { Env->Free(filter_storage_chroma_aligned); }
-  if (filter_storage_chroma_unaligned) { Env->Free(filter_storage_chroma_unaligned); }
 }
 
 

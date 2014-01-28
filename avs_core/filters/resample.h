@@ -57,11 +57,13 @@ public:
   virtual ~FilteredResizeH(void);
   PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment* env);
 
-  static ResamplerH GetResampler(int CPU, bool aligned, ResamplingProgram* program);
+  int __stdcall SetCacheHints(int cachehints, int frame_range) override {
+    return cachehints == CACHE_GET_MTMODE ? MT_NICE_PLUGIN : 0;
+  }
+
+  static ResamplerH GetResampler(int CPU, bool aligned, ResamplingProgram* program, IScriptEnvironment2* env);
 
 private:
-  IScriptEnvironment2* Env;
-
   // Resampling
   ResamplingProgram *resampling_program_luma;
   ResamplingProgram *resampling_program_chroma;
@@ -73,8 +75,7 @@ private:
   void* filter_storage_luma;
   void* filter_storage_chroma;
 
-  BYTE *temp_1, *temp_2;
-  int   temp_1_pitch, temp_2_pitch;
+  int temp_1_pitch, temp_2_pitch;
 
   int src_width, src_height, dst_width,  dst_height;
 
@@ -100,19 +101,15 @@ public:
   virtual ~FilteredResizeV(void);
   PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment* env);
 
+  int __stdcall SetCacheHints(int cachehints, int frame_range) override {
+    return cachehints == CACHE_GET_MTMODE ? MT_NICE_PLUGIN : 0;
+  }
+
   static ResamplerV GetResampler(int CPU, bool aligned, void*& storage, ResamplingProgram* program);
 
 private:
-  IScriptEnvironment2* Env;
-
   ResamplingProgram *resampling_program_luma;
   ResamplingProgram *resampling_program_chroma;
-  int *src_pitch_table_luma;
-  int *src_pitch_table_chromaU;
-  int *src_pitch_table_chromaV;
-  int src_pitch_luma;
-  int src_pitch_chromaU;
-  int src_pitch_chromaV;
 
   // Note: these pointer are currently not used; they are used to pass data into run-time resampler.
   // They are kept because this may be needed later (like when we implemented actual horizontal resizer.)
