@@ -656,29 +656,24 @@ PVideoFrame Dissolve::GetFrame(int n, IScriptEnvironment* env)
   int invweight = 32767-weight;
 
   env->MakeWritable(&a);
-  if (env->GetCPUFlags() & CPUF_SSE2) {
+  if (env->GetCPUFlags() & CPUF_SSE2) 
+  {
     weighted_merge_planar_sse2(a->GetWritePtr(), b->GetReadPtr(), a->GetPitch(), b->GetPitch(), a->GetRowSize(PLANAR_Y), a->GetHeight(), weight, invweight);
-    if (vi.IsPlanar()) {
+    if (vi.IsPlanar()) 
+    {
       weighted_merge_planar_sse2(a->GetWritePtr(PLANAR_U), b->GetReadPtr(PLANAR_U), a->GetPitch(PLANAR_U), b->GetPitch(PLANAR_U), a->GetRowSize(PLANAR_U), a->GetHeight(PLANAR_U), weight, invweight);
       weighted_merge_planar_sse2(a->GetWritePtr(PLANAR_V), b->GetReadPtr(PLANAR_V), a->GetPitch(PLANAR_V), b->GetPitch(PLANAR_V), a->GetRowSize(PLANAR_V), a->GetHeight(PLANAR_V), weight, invweight);    
     }
   } 
-#ifdef X86_32
-  else if (env->GetCPUFlags() & CPUF_MMX) {
-    weighted_merge_planar_mmx(a->GetWritePtr(), b->GetReadPtr(), a->GetPitch(), b->GetPitch(), a->GetRowSize(PLANAR_Y), a->GetHeight(), weight, invweight);
-    if (vi.IsPlanar()) {
-      weighted_merge_planar_mmx(a->GetWritePtr(PLANAR_U), b->GetReadPtr(PLANAR_U), a->GetPitch(PLANAR_U), b->GetPitch(PLANAR_U), a->GetRowSize(PLANAR_U), a->GetHeight(PLANAR_U), weight, invweight);
-      weighted_merge_planar_mmx(a->GetWritePtr(PLANAR_V), b->GetReadPtr(PLANAR_V), a->GetPitch(PLANAR_V), b->GetPitch(PLANAR_V), a->GetRowSize(PLANAR_V), a->GetHeight(PLANAR_V), weight, invweight);    
-    }
-  }
-#endif
-  else {
+  else
+  {
     int weight = (multiplier * 65535) / (overlap+1);
     int invweight = 65535-weight;
     weighted_merge_planar_c(a->GetWritePtr(), b->GetReadPtr(), a->GetPitch(), b->GetPitch(), a->GetRowSize(PLANAR_Y), a->GetHeight(), weight, invweight);
-    if (vi.IsPlanar()) {
+    if (vi.IsPlanar())
+    {
       weighted_merge_planar_c(a->GetWritePtr(PLANAR_U), b->GetReadPtr(PLANAR_U), a->GetPitch(PLANAR_U), b->GetPitch(PLANAR_U), a->GetRowSize(PLANAR_U), a->GetHeight(PLANAR_U), weight, invweight);
-      weighted_merge_planar_c(a->GetWritePtr(PLANAR_V), b->GetReadPtr(PLANAR_V), a->GetPitch(PLANAR_V), b->GetPitch(PLANAR_V), a->GetRowSize(PLANAR_V), a->GetHeight(PLANAR_V), weight, invweight);    
+      weighted_merge_planar_c(a->GetWritePtr(PLANAR_V), b->GetReadPtr(PLANAR_V), a->GetPitch(PLANAR_V), b->GetPitch(PLANAR_V), a->GetRowSize(PLANAR_V), a->GetHeight(PLANAR_V), weight, invweight);
     }
   }
 

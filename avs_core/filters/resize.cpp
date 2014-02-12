@@ -112,95 +112,6 @@ static void vertical_reduce_sse2(BYTE* dstp, const BYTE* srcp, int dst_pitch, in
   }
 }
 
-#ifdef X86_32
-
-//todo: think of a way to do this with pavgb
-static __forceinline __m64 vertical_reduce_mmx_blend(__m64 &src, __m64 &src_next, __m64 &src_next2, __m64 &zero, __m64 &two) {
-  __m64 src_unpck_lo = _mm_unpacklo_pi8(src, zero);
-  __m64 src_unpck_hi = _mm_unpackhi_pi8(src, zero);
-
-  __m64 src_next_unpck_lo = _mm_unpacklo_pi8(src_next, zero);
-  __m64 src_next_unpck_hi = _mm_unpackhi_pi8(src_next, zero);
-
-  __m64 src_next2_unpck_lo = _mm_unpacklo_pi8(src_next2, zero);
-  __m64 src_next2_unpck_hi = _mm_unpackhi_pi8(src_next2, zero);
-
-  __m64 acc_lo = _mm_adds_pu16(src_next_unpck_lo, src_next_unpck_lo);
-  acc_lo = _mm_adds_pu16(acc_lo, src_unpck_lo);
-  acc_lo = _mm_adds_pu16(acc_lo, src_next2_unpck_lo);
-
-  __m64 acc_hi = _mm_adds_pu16(src_next_unpck_hi, src_next_unpck_hi);
-  acc_hi = _mm_adds_pu16(acc_hi, src_unpck_hi);
-  acc_hi = _mm_adds_pu16(acc_hi, src_next2_unpck_hi);
-
-  acc_lo = _mm_adds_pu16(acc_lo, two);
-  acc_hi = _mm_adds_pu16(acc_hi, two);
-
-  acc_lo = _mm_srai_pi16(acc_lo, 2);
-  acc_hi = _mm_srai_pi16(acc_hi, 2);
-
-  return _mm_packs_pu16(acc_lo, acc_hi);
-}
-
-static void vertical_reduce_mmx(BYTE* dstp, const BYTE* srcp, int dst_pitch, int src_pitch, size_t width, size_t height) {
-  const BYTE* srcp_next = srcp + src_pitch;
-  const BYTE* srcp_next2 = srcp + src_pitch*2;
-  __m64 zero = _mm_setzero_si64();
-  __m64 two = _mm_set1_pi16(2);
-
-  size_t mod8_width = width / 8 * 8;
-
-  for (size_t y = 0; y < height-1; ++y) {
-    for (size_t x = 0; x < mod8_width; x+=8) {
-      __m64 src = *reinterpret_cast<const __m64*>(srcp+x);
-      __m64 src_next = *reinterpret_cast<const __m64*>(srcp_next+x);
-      __m64 src_next2 = *reinterpret_cast<const __m64*>(srcp_next2+x);
-
-      __m64 avg = vertical_reduce_mmx_blend(src, src_next, src_next2, zero, two);
-
-      *reinterpret_cast<__m64*>(dstp+x) = avg;
-    }
-
-    if (mod8_width != width) {
-      size_t x = width - 8;
-      __m64 src = *reinterpret_cast<const __m64*>(srcp+x);
-      __m64 src_next = *reinterpret_cast<const __m64*>(srcp_next+x);
-      __m64 src_next2 = *reinterpret_cast<const __m64*>(srcp_next2+x);
-
-      __m64 avg = vertical_reduce_mmx_blend(src, src_next, src_next2, zero, two);
-
-      *reinterpret_cast<__m64*>(dstp+x) = avg;
-    }
-
-    dstp += dst_pitch;
-    srcp += src_pitch*2;
-    srcp_next += src_pitch*2;
-    srcp_next2 += src_pitch*2;
-  }
-  //last line
-  for (size_t x = 0; x < mod8_width; x+=8) {
-    __m64 src = *reinterpret_cast<const __m64*>(srcp+x);
-    __m64 src_next = *reinterpret_cast<const __m64*>(srcp_next+x);
-
-    __m64 avg = vertical_reduce_mmx_blend(src, src_next, src_next, zero, two);
-
-    *reinterpret_cast<__m64*>(dstp+x)= avg;
-  }
-
-  if (mod8_width != width) {
-    size_t x = width - 8;
-    __m64 src = *reinterpret_cast<const __m64*>(srcp+x);
-    __m64 src_next = *reinterpret_cast<const __m64*>(srcp_next+x);
-
-    __m64 avg = vertical_reduce_mmx_blend(src, src_next, src_next, zero, two);
-
-    *reinterpret_cast<__m64*>(dstp+x)= avg;
-  }
-
-  _mm_empty();
-}
-#endif
-
 static void vertical_reduce_c(BYTE* dstp, const BYTE* srcp, int dst_pitch, int src_pitch, size_t width, size_t height) {
   const BYTE* srcp_next = srcp + src_pitch;
   const BYTE* srcp_next2 = srcp + src_pitch*2;
@@ -220,18 +131,18 @@ static void vertical_reduce_c(BYTE* dstp, const BYTE* srcp, int dst_pitch, int s
 }
 
 void vertical_reduce_core(BYTE* dstp, const BYTE* srcp, int dst_pitch, int src_pitch, int width, int height, IScriptEnvironment* env) {
-  if (!srcp) {
+  if (!srcp) 
+  {
     return;
   }
-  if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(srcp, 16) && width >= 16) {
+  if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(srcp, 16) && width >= 16) 
+  {
     vertical_reduce_sse2(dstp, srcp, dst_pitch, src_pitch, width, height);
-  } else
-#ifdef X86_32
-    if ((env->GetCPUFlags() & CPUF_MMX) && width >= 8) {
-      vertical_reduce_mmx(dstp, srcp, dst_pitch, src_pitch, width, height);
-    } else
-#endif
-    vertical_reduce_c(dstp, srcp, dst_pitch, src_pitch, width, height);
+  } 
+  else
+  {
+      vertical_reduce_c(dstp, srcp, dst_pitch, src_pitch, width, height);
+  }
 }
 
 

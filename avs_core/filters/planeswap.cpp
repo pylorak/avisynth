@@ -110,47 +110,6 @@ static void ssex_yuy2_swap(const BYTE* srcp, BYTE* dstp, int src_pitch, int dst_
 }
 
 
-#ifdef X86_32
-
-static __forceinline __m64 isse_yuy2_swap_register(__m64 src, __m64 zero) {
-  __m64 src_unpck_lo = _mm_unpacklo_pi8(src, zero); //0V0Y0U0Y
-  __m64 src_unpck_hi = _mm_unpackhi_pi8(src, zero); 
-
-  src_unpck_lo = _mm_shuffle_pi16(src_unpck_lo, _MM_SHUFFLE(1, 2, 3, 0)); 
-  src_unpck_hi = _mm_shuffle_pi16(src_unpck_hi, _MM_SHUFFLE(1, 2, 3, 0)); 
-
-  return _mm_packs_pu16(src_unpck_lo, src_unpck_hi);
-}
-
-static void isse_yuy2_swap(const BYTE* srcp, BYTE* dstp, int src_pitch, int dst_pitch, int width, int height)
-{
-  int mod8width = width / 8 * 8;
-
-  __m64 zero = _mm_setzero_si64();
-
-  for (int y = 0; y < height; ++y ) {
-    for (int x = 0; x < mod8width; x+= 8) {
-      __m64 src = *reinterpret_cast<const __m64*>(srcp+x); 
-      __m64 dst = isse_yuy2_swap_register(src, zero);
-      *reinterpret_cast<__m64*>(dstp+x) = dst;
-    }
-
-    if (mod8width != width) {
-      int x = width-8;
-      __m64 src = *reinterpret_cast<const __m64*>(srcp+x); 
-      __m64 dst = isse_yuy2_swap_register(src, zero);
-      *reinterpret_cast<__m64*>(dstp+x) = dst;
-    }
-
-    dstp += dst_pitch;
-    srcp += src_pitch;
-  }
-  _mm_empty();
-}
-#endif
-
-
-
 AVSValue __cdecl SwapUV::CreateSwapUV(AVSValue args, void* user_data, IScriptEnvironment* env) {
   PClip p = args[0].AsClip();
   if (p->GetVideoInfo().IsY8())
@@ -193,20 +152,17 @@ PVideoFrame __stdcall SwapUV::GetFrame(int n, IScriptEnvironment* env) {
       const BYTE* srcp = src->GetReadPtr();
       PVideoFrame dst = env->NewVideoFrame(vi);
       
-      if ((env->GetCPUFlags() & CPUF_SSSE3) && IsPtrAligned(srcp, 16) && dst->GetRowSize() >= 16) {
+      if ((env->GetCPUFlags() & CPUF_SSSE3) && IsPtrAligned(srcp, 16) && dst->GetRowSize() >= 16) 
+      {
         ssex_yuy2_swap<ssse3_yuy2_swap_register>(srcp, dst->GetWritePtr(), src->GetPitch(),
           dst->GetPitch(), dst->GetRowSize(), src->GetHeight());
-      } else if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(srcp, 16) && dst->GetRowSize() >= 16) {
+      } 
+      else if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(srcp, 16) && dst->GetRowSize() >= 16) 
+      {
         ssex_yuy2_swap<sse2_yuy2_swap_register>(srcp, dst->GetWritePtr(), src->GetPitch(), 
           dst->GetPitch(), dst->GetRowSize(), src->GetHeight());
-      } else
-#ifdef X86_32
-      if ((env->GetCPUFlags() & CPUF_INTEGER_SSE) && dst->GetRowSize() >= 8)   // need pshufw
-      {
-        isse_yuy2_swap(srcp, dst->GetWritePtr(), src->GetPitch(), dst->GetPitch(), dst->GetRowSize(), src->GetHeight());
-      }
+      } 
       else
-#endif
       {
         short* dstp = (short*)dst->GetWritePtr();
         const int srcpitch = src->GetPitch();

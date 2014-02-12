@@ -124,88 +124,6 @@ static void greyscale_rgb32_sse2(BYTE *srcp, size_t /*width*/, size_t height, si
 }
 
 
-#ifdef X86_32
-static void greyscale_yuy2_mmx(BYTE *srcp, size_t width, size_t height, size_t pitch) {
-  bool not_mod8 = false;
-  size_t loop_limit = min((pitch / 8) * 8, ((width*4 + 7) / 8) * 8);
-
-  __m64 luma_mask = _mm_set1_pi16(0x00FF);
-#pragma warning(push)
-#pragma warning(disable: 4309)
-  __m64 chroma_value = _mm_set1_pi16(0x8000);
-#pragma warning(pop)
-
-  for (size_t y = 0; y < height; ++y) {
-    for (size_t x = 0; x < loop_limit; x+=8) {
-     __m64 src = *reinterpret_cast<const __m64*>(srcp+x);
-     src = _mm_and_si64(src, luma_mask);
-     src = _mm_or_si64(src, chroma_value);
-     *reinterpret_cast<__m64*>(srcp+x) = src;
-    }
-
-    if (loop_limit < width) {
-      __m64 src = *reinterpret_cast<const __m64*>(srcp+width-8);
-      src = _mm_and_si64(src, luma_mask);
-      src = _mm_or_si64(src, chroma_value);
-      *reinterpret_cast<__m64*>(srcp+width-8) = src;
-    }
-
-    srcp += pitch;
-  }
- _mm_empty();
-}
-
-static __forceinline __m64 greyscale_rgb32_core_mmx(__m64 &src, __m64 &alpha_mask, __m64 &zero, __m64 &matrix, __m64 &round_mask) {
-  __m64 alpha = _mm_and_si64(src, alpha_mask);
-  __m64 pixel0 = _mm_unpacklo_pi8(src, zero); 
-  __m64 pixel1 = _mm_unpackhi_pi8(src, zero);
-
-  pixel0 = _mm_madd_pi16(pixel0, matrix); //a0*0 + r0*cyr | g0*cyg + b0*cyb
-  pixel1 = _mm_madd_pi16(pixel1, matrix); //a1*0 + r1*cyr | g1*cyg + b1*cyb
-
-  __m64 tmp = _mm_unpackhi_pi32(pixel0, pixel1); // r1*cyr | r0*cyr
-  __m64 tmp2 = _mm_unpacklo_pi32(pixel0, pixel1); // g1*cyg + b1*cyb | g0*cyg + b0*cyb
-
-  tmp = _mm_add_pi32(tmp, tmp2); // r1*cyr + g1*cyg + b1*cyb | r0*cyr + g0*cyg + b0*cyb
-  tmp = _mm_add_pi32(tmp, round_mask); // r1*cyr + g1*cyg + b1*cyb + 32768 | r0*cyr + g0*cyg + b0*cyb + 32768
-  tmp = _mm_srli_pi32(tmp, 15); // 0 0 0 p2 | 0 0 0 p1
-
-  __m64 shifted = _mm_slli_si64(tmp, 8);
-  tmp = _mm_or_si64(tmp, shifted); // 0 0 p2 p2 | 0 0 p1 p1
-  tmp = _mm_or_si64(tmp, _mm_slli_si64(shifted, 8)); // 0 p2 p2 p2 | 0 p1 p1 p1
-  return _mm_or_si64(tmp, alpha);
-}
-
-static void greyscale_rgb32_mmx(BYTE *srcp, size_t width, size_t height, size_t pitch, int cyb, int cyg, int cyr) {
-  __m64 matrix = _mm_set_pi16(0, cyr, cyg, cyb);
-  __m64 zero = _mm_setzero_si64();
-  __m64 round_mask = _mm_set1_pi32(16384);
-  __m64 alpha_mask = _mm_set1_pi32(0xFF000000);
-
-  size_t loop_limit = min((pitch / 8) * 8, ((width*4 + 7) / 8) * 8);
-
-  for (size_t y = 0; y < height; ++y) {
-    for (size_t x = 0; x < loop_limit; x+=8) {
-      __m64 src = *reinterpret_cast<const __m64*>(srcp+x); //pixels 0 and 1
-      __m64 result = greyscale_rgb32_core_mmx(src, alpha_mask, zero, matrix, round_mask);
-
-      *reinterpret_cast<__m64*>(srcp+x) = result;
-    }
-
-    if (loop_limit < width) {
-      __m64 src = *reinterpret_cast<const __m64*>(srcp+width-8); //pixels 0 and 1
-      __m64 result = greyscale_rgb32_core_mmx(src, alpha_mask, zero, matrix, round_mask);
-
-      *reinterpret_cast<__m64*>(srcp+width-8) = result;
-    }
-
-    srcp += pitch;
-  }
-  _mm_empty();
-}
-#endif
-
-
 PVideoFrame Greyscale::GetFrame(int n, IScriptEnvironment* env)
 {
   PVideoFrame frame = child->GetFrame(n, env);
@@ -224,28 +142,26 @@ PVideoFrame Greyscale::GetFrame(int n, IScriptEnvironment* env)
     return frame;
   }
 
-  if (vi.IsYUY2()) {
+  if (vi.IsYUY2()) 
+  {
     if ((env->GetCPUFlags() & CPUF_SSE2) && width > 4 && IsPtrAligned(srcp, 16)) {
       greyscale_yuy2_sse2(srcp, width, height, pitch);
-    } else
-#ifdef X86_32
-      if ((env->GetCPUFlags() & CPUF_MMX) && width > 2) {
-        greyscale_yuy2_mmx(srcp, width, height, pitch);
-      } else
-#endif
+    }
+    else
+    {
+      for (int y = 0; y<height; ++y)
       {
-        for (int y = 0; y<height; ++y)
-        {
-          for (int x = 0; x<width; x++)
-            srcp[x*2+1] = 128;
-          srcp += pitch;
-        }
+        for (int x = 0; x<width; x++)
+          srcp[x*2+1] = 128;
+        srcp += pitch;
       }
+    }
 
-      return frame;
+    return frame;
   }
 
-  if (vi.IsRGB32()) {
+  if (vi.IsRGB32() && (env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(srcp, 16)) 
+  {
     const int cyav = int(0.33333*32768+0.5);
 
     const int cyb = int(0.114*32768+0.5);
@@ -256,28 +172,18 @@ PVideoFrame Greyscale::GetFrame(int n, IScriptEnvironment* env)
     const int cyg709 = int(0.7152*32768+0.5);
     const int cyr709 = int(0.2126*32768+0.5);
 
-    if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(srcp, 16)) {
-      if (matrix_ == Rec709) {
-        greyscale_rgb32_sse2(srcp, width, height, pitch, cyb709, cyg709, cyr709);
-      } else if (matrix_ == Average) {
-        greyscale_rgb32_sse2(srcp, width, height, pitch, cyav, cyav, cyav);
-      } else {
-        greyscale_rgb32_sse2(srcp, width, height, pitch, cyb, cyg, cyr);
-      }
-      return frame;
+    switch (matrix_)
+    {
+    case Rec601:
+      greyscale_rgb32_sse2(srcp, width, height, pitch, cyb, cyg, cyr);
+      break;
+    case Rec709:
+      greyscale_rgb32_sse2(srcp, width, height, pitch, cyb709, cyg709, cyr709);
+      break;
+    case Average:
+      greyscale_rgb32_sse2(srcp, width, height, pitch, cyav, cyav, cyav);
+      break;
     }
-#ifdef X86_32
-    else if (env->GetCPUFlags() & CPUF_MMX) {
-      if (matrix_ == Rec709) {
-        greyscale_rgb32_mmx(srcp, width, height, pitch, cyb709, cyg709, cyr709);
-      } else if (matrix_ == Average) {
-        greyscale_rgb32_mmx(srcp, width, height, pitch, cyav, cyav, cyav);
-      } else {
-        greyscale_rgb32_mmx(srcp, width, height, pitch, cyb, cyg, cyr);
-      }
-      return frame;
-    }
-#endif
   }
 
   if (vi.IsRGB())

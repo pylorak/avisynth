@@ -163,93 +163,12 @@ static void af_vertical_sse2(BYTE* line_buf, BYTE* dstp, int height, int pitch, 
   }
 }
 
-#ifdef X86_32
-
-static __forceinline __m64 af_blend_mmx(__m64 &upper, __m64 &center, __m64 &lower, __m64 &center_weight, __m64 &outer_weight, __m64 &round_mask) {
-  __m64 outer_tmp = _mm_add_pi16(upper, lower);
-  __m64 center_tmp = _mm_mullo_pi16(center, center_weight);
-
-  outer_tmp = _mm_mullo_pi16(outer_tmp, outer_weight);
-
-  __m64 result = _mm_adds_pi16(center_tmp, outer_tmp);
-  result = _mm_adds_pi16(result, center_tmp);
-  result = _mm_adds_pi16(result, round_mask);
-  return _mm_srai_pi16(result, 7);
-}
-
-static __forceinline __m64 af_unpack_blend_mmx(__m64 &left, __m64 &center, __m64 &right, __m64 &center_weight, __m64 &outer_weight, __m64 &round_mask, __m64 &zero) {
-  __m64 left_lo = _mm_unpacklo_pi8(left, zero);
-  __m64 left_hi = _mm_unpackhi_pi8(left, zero);
-  __m64 center_lo = _mm_unpacklo_pi8(center, zero);
-  __m64 center_hi = _mm_unpackhi_pi8(center, zero);
-  __m64 right_lo = _mm_unpacklo_pi8(right, zero);
-  __m64 right_hi = _mm_unpackhi_pi8(right, zero);
-
-  __m64 result_lo = af_blend_mmx(left_lo, center_lo, right_lo, center_weight, outer_weight, round_mask);
-  __m64 result_hi = af_blend_mmx(left_hi, center_hi, right_hi, center_weight, outer_weight, round_mask);
-
-  return _mm_packs_pu16(result_lo, result_hi);
-}
-
-static void af_vertical_mmx(BYTE* line_buf, BYTE* dstp, int height, int pitch, int width, int amount) {
-  short t = (amount + 256) >> 9;
-  __m64 center_weight = _mm_set1_pi16(t);
-  __m64 outer_weight = _mm_set1_pi16(64 - t);
-  __m64 round_mask = _mm_set1_pi16(0x40);
-  __m64 zero = _mm_setzero_si64();
-
-  for (int y = 0; y < height-1; ++y) {
-    for (int x = 0; x < width; x+= 8) {
-      __m64 upper = *reinterpret_cast<const __m64*>(line_buf+x);
-      __m64 center = *reinterpret_cast<const __m64*>(dstp+x);
-      __m64 lower = *reinterpret_cast<const __m64*>(dstp+pitch+x);
-      *reinterpret_cast<__m64*>(line_buf+x) = center;
-
-      __m64 result = af_unpack_blend_mmx(upper, center, lower, center_weight, outer_weight, round_mask, zero);
-
-      *reinterpret_cast<__m64*>(dstp+x) = result;
-    }
-    dstp += pitch;
-  }
-
-  //last line
-  for (int x = 0; x < width; x+= 8) {
-    __m64 upper = *reinterpret_cast<const __m64*>(line_buf+x);
-    __m64 center = *reinterpret_cast<const __m64*>(dstp+x);
-
-    __m64 upper_lo = _mm_unpacklo_pi8(upper, zero);
-    __m64 upper_hi = _mm_unpackhi_pi8(upper, zero);
-    __m64 center_lo = _mm_unpacklo_pi8(center, zero);
-    __m64 center_hi = _mm_unpackhi_pi8(center, zero);
-
-    __m64 result_lo = af_blend_mmx(upper_lo, center_lo, center_lo, center_weight, outer_weight, round_mask);
-    __m64 result_hi = af_blend_mmx(upper_hi, center_hi, center_hi, center_weight, outer_weight, round_mask);
-
-    __m64 result = _mm_packs_pu16(result_lo, result_hi);
-
-    *reinterpret_cast<__m64*>(dstp+x) = result;
-  }
-  _mm_empty();
-}
-
-#endif
-
 static void af_vertical_process(BYTE* line_buf, BYTE* dstp, size_t height, size_t pitch, size_t width, size_t amount, IScriptEnvironment* env) {
   if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(dstp, 16) && width >= 16) {
     //pitch of aligned frames is always >= 16 so we'll just process some garbage if width is not mod16
     af_vertical_sse2(line_buf, dstp, height, pitch, width, amount);
-  } else
-#ifdef X86_32
-  if ((env->GetCPUFlags() & CPUF_MMX) && width >= 8)
-  {
-    size_t mod8_width = width / 8 * 8;
-    af_vertical_mmx(line_buf, dstp, height, pitch, mod8_width, amount);
-    if (mod8_width != width) {
-      //yes, this is bad for caching. MMX shouldn't be used these days anyway
-      af_vertical_c(line_buf, dstp + mod8_width, height, pitch, width - mod8_width, amount);
-    }
-  } else
-#endif
+  } 
+  else
   {
     af_vertical_c(line_buf, dstp, height, pitch, width, amount);
   }
@@ -393,60 +312,6 @@ static void af_horizontal_rgb32_sse2(BYTE* dstp, const BYTE* srcp, size_t dst_pi
   }
 }
 
-#ifdef X86_32
-
-static void af_horizontal_rgb32_mmx(BYTE* dstp, const BYTE* srcp, size_t dst_pitch, size_t src_pitch, size_t height, size_t width, size_t amount) {
-  size_t width_bytes = width * 4;
-  size_t loop_limit = width_bytes - 8;
-  int center_weight_c = amount*2;
-  int outer_weight_c = 32768-amount;
-
-  short t = (amount + 256) >> 9;
-  __m64 center_weight = _mm_set1_pi16(t);
-  __m64 outer_weight = _mm_set1_pi16(64 - t);
-  __m64 round_mask = _mm_set1_pi16(0x40);
-  __m64 zero = _mm_setzero_si64();
-  //#pragma warning(disable: 4309)
-  __m64 left_mask = _mm_set_pi32(0, 0xFFFFFFFF);
-  __m64 right_mask = _mm_set_pi32(0xFFFFFFFF, 0);
-  //#pragma warning(default: 4309)
-
-  __m64 center, right, left, result;
-
-  for (size_t y = 0; y < height; ++y) {
-    center = *reinterpret_cast<const __m64*>(srcp);
-    right = *reinterpret_cast<const __m64*>(srcp + 4);
-    left = _mm_or_si64(_mm_and_si64(center, left_mask), _mm_slli_si64(center, 32));
-
-    result = af_unpack_blend_mmx(left, center, right, center_weight, outer_weight, round_mask, zero);
-
-    *reinterpret_cast< __m64*>(dstp) = result;
-
-    for (size_t x = 8; x < loop_limit; x+=8) {
-      left = *reinterpret_cast<const __m64*>(srcp + x - 4);
-      center = *reinterpret_cast<const __m64*>(srcp + x);
-      right = *reinterpret_cast<const __m64*>(srcp + x + 4);
-
-      result = af_unpack_blend_mmx(left, center, right, center_weight, outer_weight, round_mask, zero);
-
-      *reinterpret_cast< __m64*>(dstp+x) = result;
-    }
-
-    left = *reinterpret_cast<const __m64*>(srcp + loop_limit - 4);
-    center = *reinterpret_cast<const __m64*>(srcp + loop_limit);
-    right = _mm_or_si64(_mm_and_si64(center, right_mask), _mm_srli_si64(center, 32));
-
-    result = af_unpack_blend_mmx(left, center, right, center_weight, outer_weight, round_mask, zero);
-
-    *reinterpret_cast< __m64*>(dstp + loop_limit) = result;
-
-    dstp += dst_pitch;
-    srcp += src_pitch;
-  }
-  _mm_empty();
-}
-
-#endif
 
 // -------------------------------------
 // Blur/Sharpen Horizontal YUY2 C++ Code
@@ -583,114 +448,6 @@ static void af_horizontal_yuy2_sse2(BYTE* dstp, const BYTE* srcp, size_t dst_pit
 }
 
 
-
-#ifdef X86_32
-// -------------------------------------
-// Blur/Sharpen Horizontal YUY2 MMX Code
-// -------------------------------------
-// 
-static __forceinline __m64 af_blend_yuy2_mmx(__m64 &left, __m64 &center, __m64 &right, __m64 &luma_mask, 
-                           __m64 &center_weight, __m64 &outer_weight, __m64 &round_mask) {
-  __m64 left_luma = _mm_and_si64(left, luma_mask); //0 Y1 0 Y0 0 Y-1 0 Y-2
-  __m64 center_luma = _mm_and_si64(center, luma_mask); //0 Y3 0 Y2 0 Y1 0 Y0
-  __m64 right_luma = _mm_and_si64(right, luma_mask); //0 Y5 0 Y4 0 Y3 0 Y2
-
-  left_luma = _mm_or_si64(
-    _mm_srli_si64(left_luma, 16), // 0 0 0 Y1 0 Y0 0 Y-1
-    _mm_slli_si64(right_luma, 48) // 0 Y2 0 0 0 0 0 0
-    );
-
-  right_luma = _mm_or_si64(
-    _mm_srli_si64(center_luma, 16),//0 0 0 Y3 0 Y2 0 Y1
-    _mm_slli_si64(right_luma, 16)//0 Y4 0 Y3 0 Y2 0 0
-    );
-
-  __m64 result_luma = af_blend_mmx(left_luma, center_luma, right_luma, center_weight, outer_weight, round_mask); 
-
-  __m64 left_chroma = _mm_srli_pi16(left, 8); //0 V 0 U 0 V 0 U
-  __m64 center_chroma = _mm_srli_pi16(center, 8); //0 V 0 U 0 V 0 U
-  __m64 right_chroma = _mm_srli_pi16(right, 8); //0 V 0 U 0 V 0 U
-
-  __m64 result_chroma = af_blend_mmx(left_chroma, center_chroma, right_chroma, center_weight, outer_weight, round_mask);
-  result_chroma = _mm_slli_si64(result_chroma, 8);
-
-  return _mm_or_si64(result_luma, result_chroma);
-}
-
-
-static void af_horizontal_yuy2_mmx(BYTE* dstp, const BYTE* srcp, size_t dst_pitch, size_t src_pitch, size_t height, size_t width, size_t amount) {
-  size_t width_bytes = width * 2;
-  size_t loop_limit = width_bytes - 8;
-
-  short t = (amount + 256) >> 9;
-  __m64 center_weight = _mm_set1_pi16(t);
-  __m64 outer_weight = _mm_set1_pi16(64 - t);
-  __m64 round_mask = _mm_set1_pi16(0x40);
-#pragma warning(push)
-#pragma warning(disable: 4309)
-  __m64 left_mask = _mm_set_pi32(0, 0xFFFFFFFF);
-  __m64 right_mask = _mm_set_pi32(0xFFFFFFFF, 0);
-  __m64 left_mask_small = _mm_set_pi16(0, 0, 0x00FF, 0);
-  __m64 right_mask_small = _mm_set_pi16(0, 0x00FF, 0, 0);
-  __m64 luma_mask = _mm_set1_pi16(0xFF);
-#pragma warning(pop)
-
-  __m64 center, right, left, result;
-
-  for (size_t y = 0; y < height; ++y) {
-    center = *reinterpret_cast<const __m64*>(srcp);//V1 Y3 U1 Y2 V0 Y1 U0 Y0
-    right = *reinterpret_cast<const __m64*>(srcp + 4);//V2 Y5 U2 Y4 V1 Y3 U1 Y2
-
-    //todo: now this is dumb
-    left = _mm_or_si64(
-      _mm_and_si64(center, left_mask), 
-      _mm_slli_si64(center, 32)
-      );//V0 Y1 U0 Y0 V0 Y1 U0 Y0
-    left = _mm_or_si64(
-      _mm_andnot_si64(left_mask_small, left),
-      _mm_and_si64(_mm_slli_si64(center, 16), left_mask_small)
-      );//V0 Y1 U0 Y0 V0 Y0 U0 Y0
-
-    result = af_blend_yuy2_mmx(left, center, right, luma_mask, center_weight, outer_weight, round_mask);
-
-    *reinterpret_cast< __m64*>(dstp) = result;
-
-    for (size_t x = 8; x < loop_limit; x+=8) {
-      left = *reinterpret_cast<const __m64*>(srcp + x - 4);//V0 Y1 U0 Y0 V-1 Y-1 U-1 Y-2
-      center = *reinterpret_cast<const __m64*>(srcp + x); //V1 Y3 U1 Y2 V0 Y1 U0 Y0
-      right = *reinterpret_cast<const __m64*>(srcp + x + 4);//V2 Y5 U2 Y4 V1 Y3 U1 Y2
-
-      __m64 result = af_blend_yuy2_mmx(left, center, right, luma_mask, center_weight, outer_weight, round_mask);
-
-      *reinterpret_cast< __m64*>(dstp+x) = result;
-    }
-
-    left = *reinterpret_cast<const __m64*>(srcp + loop_limit - 4);
-    center = *reinterpret_cast<const __m64*>(srcp + loop_limit);  //V1 Y3 U1 Y2 V0 Y1 U0 Y0
-
-    //todo: now this is dumb2
-    right = _mm_or_si64(
-      _mm_and_si64(center, right_mask), 
-      _mm_srli_si64(center, 32)
-      );//V1 Y3 U1 Y2 V1 Y3 U1 Y2
-    right = _mm_or_si64(
-      _mm_andnot_si64(right_mask_small, right),
-      _mm_and_si64(_mm_srli_si64(center, 16), right_mask_small)
-      );//V1 Y3 U1 Y3 V1 Y3 U1 Y2
-
-    result = af_blend_yuy2_mmx(left, center, right, luma_mask, center_weight, outer_weight, round_mask);
-
-    *reinterpret_cast< __m64*>(dstp + loop_limit) = result;
-
-    dstp += dst_pitch;
-    srcp += src_pitch;
-  }
-  _mm_empty();
-}
-
-
-#endif
-
 // --------------------------------------
 // Blur/Sharpen Horizontal RGB24 C++ Code
 // --------------------------------------
@@ -807,70 +564,6 @@ static void af_horizontal_yv12_sse2(BYTE* dstp, size_t height, size_t pitch, siz
 }
 
 
-#ifdef X86_32
-
-static void af_horizontal_yv12_mmx(BYTE* dstp, size_t height, size_t pitch, size_t width, size_t amount) {
-  size_t mod8_width = (width / 8) * 8;
-  size_t mmx_loop_limit = width == mod8_width ? mod8_width - 8 : mod8_width; 
-  int center_weight_c = amount*2;
-  int outer_weight_c = 32768-amount;
-
-  short t = (amount + 256) >> 9;
-  __m64 center_weight = _mm_set1_pi16(t);
-  __m64 outer_weight = _mm_set1_pi16(64 - t);
-  __m64 round_mask = _mm_set1_pi16(0x40);
-  __m64 zero = _mm_setzero_si64();
-#pragma warning(push)
-#pragma warning(disable: 4309)
-  __m64 left_mask = _mm_set_pi8(0, 0, 0, 0, 0, 0, 0, 0xFF);
-  __m64 right_mask = _mm_set_pi8(0xFF, 0, 0, 0, 0, 0, 0, 0);
-#pragma warning(pop)
-
-  __m64 left;
-  
-  for (size_t y = 0; y < height; ++y) {
-    //left border
-    __m64 center = *reinterpret_cast<const __m64*>(dstp);
-    __m64 right = *reinterpret_cast<const __m64*>(dstp+1);
-    left = _mm_or_si64(_mm_and_si64(center, left_mask),  _mm_slli_si64(center, 8));
-
-    __m64 result = af_unpack_blend_mmx(left, center, right, center_weight, outer_weight, round_mask, zero);
-    left = *reinterpret_cast<const __m64*>(dstp+7);
-    *reinterpret_cast<__m64*>(dstp) = result;
-
-    //main processing loop
-    for (size_t x = 8; x < mmx_loop_limit; x+= 8) {
-      center = *reinterpret_cast<const __m64*>(dstp+x);
-      right = *reinterpret_cast<const __m64*>(dstp+x+1);
-      
-      result = af_unpack_blend_mmx(left, center, right, center_weight, outer_weight, round_mask, zero);
-      left = *reinterpret_cast<const __m64*>(dstp+x+7);
-
-      *reinterpret_cast<__m64*>(dstp+x) = result;
-    }
-
-    //right border
-    if(mod8_width == width) { //width is mod8, process with mmx
-      center = *reinterpret_cast<const __m64*>(dstp+mod8_width-8);
-      right = _mm_or_si64(_mm_and_si64(center, right_mask),  _mm_srli_si64(center, 8));
-
-      result = af_unpack_blend_mmx(left, center, right, center_weight, outer_weight, round_mask, zero);
-
-      *reinterpret_cast<__m64*>(dstp+mod8_width-8) = result;
-    } else { //some stuff left
-      BYTE l = _mm_cvtsi64_si32(left) & 0xFF;
-      af_horizontal_yv12_process_line_c(l, dstp+mod8_width, width-mod8_width, center_weight_c, outer_weight_c);
-    }
-
-    dstp += pitch;
-  }
-  _mm_empty();
-}
-
-
-#endif
-
-
 static void copy_frame(const PVideoFrame &src, PVideoFrame &dst, IScriptEnvironment *env) {
   env->BitBlt(dst->GetWritePtr(), dst->GetPitch(), src->GetReadPtr(), src->GetPitch(), src->GetRowSize(), src->GetHeight());
   // Blit More planes (pitch, rowsize and height should be 0, if none is present)
@@ -893,52 +586,42 @@ PVideoFrame __stdcall AdjustFocusH::GetFrame(int n, IScriptEnvironment* env)
   if (vi.IsPlanar()) {
     const int planes[3] = { PLANAR_Y, PLANAR_U, PLANAR_V };
     copy_frame(src, dst, env); //planar processing is always in-place
-    for(int cplane=0;cplane<3;cplane++) {
+    for (int cplane = 0; cplane<3; cplane++) {
       int plane = planes[cplane];
       int width = dst->GetRowSize(plane);
       BYTE* q = dst->GetWritePtr(plane);
       int pitch = dst->GetPitch(plane);
       int height = dst->GetHeight(plane);
-      if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(q, 16)) {
+      if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(q, 16)) 
+      {
         af_horizontal_yv12_sse2(q, height, pitch, width, amount);
-      } else
-#ifdef X86_32
-        if (env->GetCPUFlags() & CPUF_MMX) {
-          af_horizontal_yv12_mmx(q,height,pitch,width,amount);
-        } else
-#endif
-        {
-          af_horizontal_yv12_c(q,height,pitch,width,amount);
-        } 
+      }
+      else
+      {
+        af_horizontal_yv12_c(q, height, pitch, width, amount);
+      }
     }
   } else {
     if (vi.IsYUY2()) {
       BYTE* q = dst->GetWritePtr();
       const int pitch = dst->GetPitch();
-      if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(src->GetReadPtr(), 16)) {
+      if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(src->GetReadPtr(), 16))
+      {
         af_horizontal_yuy2_sse2(dst->GetWritePtr(), src->GetReadPtr(), dst->GetPitch(), src->GetPitch(), vi.height, vi.width, amount);
-      } else
-#ifdef X86_32
-      if (env->GetCPUFlags() & CPUF_MMX) {
-        af_horizontal_yuy2_mmx(dst->GetWritePtr(), src->GetReadPtr(), dst->GetPitch(), src->GetPitch(), vi.height, vi.width, amount);
-      } else
-#endif
+      }
+      else
       {
         copy_frame(src, dst, env); //in-place
-        af_horizontal_yuy2_c(q,vi.height,pitch,vi.width,amount);
+        af_horizontal_yuy2_c(q, vi.height, pitch, vi.width, amount);
       }
-    } 
+    }
     else if (vi.IsRGB32()) {
-      if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(src->GetReadPtr(), 16)) {
+      if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(src->GetReadPtr(), 16)) 
+      {
         //this one is NOT in-place
         af_horizontal_rgb32_sse2(dst->GetWritePtr(), src->GetReadPtr(), dst->GetPitch(), src->GetPitch(), vi.height, vi.width, amount);
-      } else
-#ifdef X86_32
-      if (env->GetCPUFlags() & CPUF_MMX)
-      { //so as this one
-        af_horizontal_rgb32_mmx(dst->GetWritePtr(), src->GetReadPtr(), dst->GetPitch(), src->GetPitch(), vi.height, vi.width, amount);
-      } else
-#endif
+      } 
+      else
       {
         copy_frame(src, dst, env);
         af_horizontal_rgb32_c(dst->GetWritePtr(), vi.height, dst->GetPitch(), vi.width, amount);
@@ -1168,92 +851,26 @@ static void accumulate_line_sse2(BYTE* c_plane, const BYTE** planeP, int planes,
   }
 }
 
-#ifdef X86_32
-
-static __forceinline __m64 ts_multiply_repack_mmx(__m64 &src, __m64 &div, __m64 &halfdiv, __m64 &zero) {
-  __m64 acc = _mm_madd_pi16(src, div);
-  acc = _mm_add_pi32(acc, halfdiv);
-  acc = _mm_srli_pi32(acc, 15);
-  acc = _mm_packs_pi32(acc, acc);
-  return _mm_packs_pu16(acc, zero);
-}
-
-//thresh and div must always be 16-bit integers. Thresh is 2 packed bytes and div is a single 16-bit number
-static void accumulate_line_mmx(BYTE* c_plane, const BYTE** planeP, int planes, size_t width, int threshold, int div) {
-  __m64 halfdiv_vector = _mm_set1_pi32(16384);
-  __m64 div_vector = _mm_set1_pi16(div);
-
-  for (size_t x = 0; x < width; x+=8) {
-    __m64 current = *reinterpret_cast<const __m64*>(c_plane+x);
-    __m64 zero = _mm_setzero_si64();
-    __m64 low = _mm_unpacklo_pi8(current, zero);
-    __m64 high = _mm_unpackhi_pi8(current, zero);
-    __m64 thresh = _mm_set1_pi16(threshold);
-
-    for(int plane = planes-1; plane >= 0; --plane) {
-      __m64 p = *reinterpret_cast<const __m64*>(planeP[plane]+x);
-
-      __m64 p_greater_t = _mm_subs_pu8(p, thresh);
-      __m64 c_greater_t = _mm_subs_pu8(current, thresh);
-      __m64 over_thresh = _mm_or_si64(p_greater_t, c_greater_t); //abs(p-c) - t == (satsub(p,c) | satsub(c,p)) - t =kinda= satsub(p,t) | satsub(c,t)
-
-      __m64 leq_thresh = _mm_cmpeq_pi8(over_thresh, zero); //abs diff lower or equal to threshold
-
-      __m64 andop = _mm_and_si64(leq_thresh, p);
-      __m64 andnop = _mm_andnot_si64(leq_thresh, current);
-      __m64 blended = _mm_or_si64(andop, andnop); //abs(p-c) <= thresh ? p : c
-
-      __m64 add_low = _mm_unpacklo_pi8(blended, zero);
-      __m64 add_high = _mm_unpackhi_pi8(blended, zero);
-
-      low = _mm_adds_pu16(low, add_low);
-      high = _mm_adds_pu16(high, add_high);
-    }
-    
-    __m64 low_low   = ts_multiply_repack_mmx(_mm_unpacklo_pi16(low, zero), div_vector, halfdiv_vector, zero);
-    __m64 low_high  = ts_multiply_repack_mmx(_mm_unpackhi_pi16(low, zero), div_vector, halfdiv_vector, zero);
-    __m64 high_low  = ts_multiply_repack_mmx(_mm_unpacklo_pi16(high, zero), div_vector, halfdiv_vector, zero);
-    __m64 high_high = ts_multiply_repack_mmx(_mm_unpackhi_pi16(high, zero), div_vector, halfdiv_vector, zero);
-
-    low = _mm_unpacklo_pi16(low_low, low_high);
-    high = _mm_unpacklo_pi16(high_low, high_high);
-
-   __m64 acc = _mm_unpacklo_pi32(low, high);
-
-    *reinterpret_cast<__m64*>(c_plane+x) = acc;
-  }
-  _mm_empty();
-}
-
-#endif
-
 static void accumulate_line_yuy2(BYTE* c_plane, const BYTE** planeP, int planes, size_t width, BYTE threshold_luma, BYTE threshold_chroma, int div, bool aligned16, IScriptEnvironment* env) {
-  if ((env->GetCPUFlags() & CPUF_SSE2) && aligned16 && width >= 16) {
+  if ((env->GetCPUFlags() & CPUF_SSE2) && aligned16 && width >= 16) 
+  {
     accumulate_line_sse2(c_plane, planeP, planes, width, threshold_luma | (threshold_chroma << 8), div);
-  } else
-#ifdef X86_32
-  if ((env->GetCPUFlags() & CPUF_MMX) && width >= 8) {
-    accumulate_line_mmx(c_plane, planeP, planes, width, threshold_luma | (threshold_chroma << 8), div); //yuy2 is always at least mod8
-  } else 
-#endif
+  }
+  else
+  {
     accumulate_line_yuy2_c(c_plane, planeP, planes, width, threshold_luma, threshold_chroma, div);
+  }
 }
 
 static void accumulate_line(BYTE* c_plane, const BYTE** planeP, int planes, size_t width, BYTE threshold, int div, bool aligned16, IScriptEnvironment* env) {
-  if ((env->GetCPUFlags() & CPUF_SSE2) && aligned16 && width >= 16) {
+  if ((env->GetCPUFlags() & CPUF_SSE2) && aligned16 && width >= 16) 
+  {
     accumulate_line_sse2(c_plane, planeP, planes, width, threshold | (threshold << 8), div);
-  } else
-#ifdef X86_32
-  if ((env->GetCPUFlags() & CPUF_MMX) && width >= 8) {
-    size_t mod8_width = width / 8 * 8;
-    accumulate_line_mmx(c_plane, planeP, planes, width, threshold | (threshold << 8), div);
-
-    if (mod8_width != width) {
-      accumulate_line_c(c_plane, planeP, planes, mod8_width, width - mod8_width, threshold, div);
-    }
-  } else 
-#endif
+  }
+  else 
+  {
     accumulate_line_c(c_plane, planeP, planes, 0, width, threshold, div);
+  }
 }
 
 
@@ -1283,34 +900,6 @@ static int calculate_sad_sse2(const BYTE* cur_ptr, const BYTE* other_ptr, int cu
   return result;
 }
 
-#ifdef X86_32
-static int calculate_sad_isse(const BYTE* cur_ptr, const BYTE* other_ptr, int cur_pitch, int other_pitch, size_t width, size_t height)
-{
-  size_t mod8_width = width / 8 * 8;
-  int result = 0;
-  __m64 sum = _mm_setzero_si64();
-  for (size_t y = 0; y < height; ++y) {
-    for (size_t x = 0; x < mod8_width; x+=8) {
-      __m64 cur = *reinterpret_cast<const __m64*>(cur_ptr + x);
-      __m64 other = *reinterpret_cast<const __m64*>(other_ptr + x);
-      __m64 sad = _mm_sad_pu8(cur, other);
-      sum = _mm_add_pi32(sum, sad);
-    }
-    if (mod8_width != width) {
-      for (size_t x = mod8_width; x < width; ++x) {
-        result += std::abs(cur_ptr[x] - other_ptr[x]);
-      }
-    }
-
-    cur_ptr += cur_pitch;
-    other_ptr += other_pitch;
-  }
-  result += _mm_cvtsi64_si32(sum);
-  _mm_empty();
-  return result;
-}
-#endif
-
 static int calculate_sad_c(const BYTE* cur_ptr, const BYTE* other_ptr, int cur_pitch, int other_pitch, size_t width, size_t height)
 {
   size_t sum = 0;
@@ -1325,14 +914,10 @@ static int calculate_sad_c(const BYTE* cur_ptr, const BYTE* other_ptr, int cur_p
 }
 
 static int calculate_sad(const BYTE* cur_ptr, const BYTE* other_ptr, int cur_pitch, int other_pitch, size_t width, size_t height, IScriptEnvironment* env) {
-  if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(cur_ptr, 16) && IsPtrAligned(other_ptr, 16) && width >= 16) {
+  if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(cur_ptr, 16) && IsPtrAligned(other_ptr, 16) && width >= 16) 
+  {
     return calculate_sad_sse2(cur_ptr, other_ptr, cur_pitch, other_pitch, width, height);
   }
-#ifdef X86_32
-  if ((env->GetCPUFlags() & CPUF_INTEGER_SSE) && width >= 8) {
-    return calculate_sad_isse(cur_ptr, other_ptr, cur_pitch, other_pitch, width, height);
-  }
-#endif
   return calculate_sad_c(cur_ptr, other_ptr, cur_pitch, other_pitch, width, height);
 }
 
