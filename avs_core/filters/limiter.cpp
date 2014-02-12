@@ -54,37 +54,6 @@ inline void limit_plane_sse2(BYTE *ptr, int min_value, int max_value, int pitch,
   }
 }
 
-#ifdef X86_32
-
-//min and max values are 16-bit integers either max_plane|max_plane for planar or max_luma|max_chroma for yuy2
-inline void limit_plane_isse(BYTE *ptr, int min_value, int max_value, int pitch, int width, int height) {
-  __m64 min_vector = _mm_set1_pi16(min_value);
-  __m64 max_vector = _mm_set1_pi16(max_value);
-  int mod8_width = width / 8 * 8;
-
-  for(int y = 0; y < height; y++) {
-    for(int x = 0; x < mod8_width; x+=8) {
-      __m64 src = *reinterpret_cast<__m64*>(ptr+x);
-      src = _mm_max_pu8(src, min_vector);
-      src = _mm_min_pu8(src, max_vector);
-      *reinterpret_cast<__m64*>(ptr+x) = src;
-    }
-
-    if (mod8_width != width) {
-      int x = width - 8;
-      __m64 src = *reinterpret_cast<__m64*>(ptr+x);
-      src = _mm_max_pu8(src, min_vector);
-      src = _mm_min_pu8(src, max_vector);
-      *reinterpret_cast<__m64*>(ptr+x) = src;
-    }
-
-    ptr += pitch;
-  }
-  _mm_empty();
-}
-
-#endif
-
 
 Limiter::Limiter(PClip _child, int _min_luma, int _max_luma, int _min_chroma, int _max_chroma, int _show, IScriptEnvironment* env) :
   GenericVideoFilter(_child),
@@ -198,21 +167,13 @@ PVideoFrame __stdcall Limiter::GetFrame(int n, IScriptEnvironment* env) {
 			return frame;
 		}
 
-    if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(srcp, 16)) {
+    if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(srcp, 16))
+    {
       limit_plane_sse2(srcp, min_luma | (min_chroma << 8), max_luma | (max_chroma << 8), pitch, row_size, height);
       return frame;
     }
 
-    /** Run emulator if CPU supports it**/
-#ifdef X86_32
-    if (env->GetCPUFlags() & CPUF_INTEGER_SSE)
-    {
-      //limit_plane_mmx(srcp, min_luma, max_luma, pitch, row_size, height);
-      limit_plane_isse(srcp, min_luma | (min_chroma << 8), max_luma | (max_chroma << 8), pitch, row_size, height);
-      return frame;
-    }
-#endif
-    // If not ISSE
+    // If not SSE2
     for(int y = 0; y < height; y++) {
       for(int x = 0; x < row_size; x++) {
         if(srcp[x] < min_luma )
@@ -436,7 +397,8 @@ PVideoFrame __stdcall Limiter::GetFrame(int n, IScriptEnvironment* env) {
   {
     //todo: separate to functions and use sse2 for aligned planes even if some are unaligned
     if ((env->GetCPUFlags() & CPUF_SSE2) && IsPtrAligned(srcp, 16) && 
-      IsPtrAligned(frame->GetWritePtr(PLANAR_U), 16) && IsPtrAligned(frame->GetWritePtr(PLANAR_V), 16)) {
+      IsPtrAligned(frame->GetWritePtr(PLANAR_U), 16) && IsPtrAligned(frame->GetWritePtr(PLANAR_V), 16)) 
+    {
         limit_plane_sse2(srcp, min_luma | (min_luma << 8), max_luma | (max_luma << 8), pitch, row_size, height);
 
         limit_plane_sse2(frame->GetWritePtr(PLANAR_U), min_chroma | (min_chroma << 8), max_chroma | (max_chroma << 8), 
@@ -447,19 +409,6 @@ PVideoFrame __stdcall Limiter::GetFrame(int n, IScriptEnvironment* env) {
 
         return frame;
     }
-
-#ifdef X86_32
-    if (env->GetCPUFlags() & CPUF_INTEGER_SSE)
-    {
-      limit_plane_isse(srcp, min_luma | (min_luma << 8), max_luma | (max_luma << 8), pitch, row_size, height);
-      limit_plane_isse(frame->GetWritePtr(PLANAR_U), min_chroma | (min_chroma << 8), max_chroma | (max_chroma << 8), 
-        frame->GetPitch(PLANAR_U), frame->GetRowSize(PLANAR_U), frame->GetHeight(PLANAR_U));
-      limit_plane_isse(frame->GetWritePtr(PLANAR_V), min_chroma | (min_chroma << 8), max_chroma | (max_chroma << 8), 
-        frame->GetPitch(PLANAR_V), frame->GetRowSize(PLANAR_V), frame->GetHeight(PLANAR_V));
-
-      return frame;
-    }
-#endif
 
     for(int y = 0; y < height; y++) {
       for(int x = 0; x < row_size; x++) {
