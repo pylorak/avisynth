@@ -148,11 +148,13 @@ PVideoFrame __stdcall RGB24to32::GetFrame(int n, IScriptEnvironment* env)
   const int src_pitch = src->GetPitch();
   const int dst_pitch = dst->GetPitch();
 
-  if ((env->GetCPUFlags() & CPUF_SSSE3) && IsPtrAligned(srcp, 16)) {
+  if ((env->GetCPUFlags() & CPUF_SSSE3) && IsPtrAligned(srcp, 16)) 
+  {
     convert_rgb24_to_rgb32_ssse3(srcp, dstp, src_pitch, dst_pitch, vi.width, vi.height);
-  } 
+  }
   else
 #ifdef X86_32
+    //keep it for now because there's no sse2 version and C is noticeably slower
     if (env->GetCPUFlags() & CPUF_MMX)
     {
       convert_rgb24_to_rgb32_mmx(srcp, dstp, src_pitch, dst_pitch, vi.width, vi.height);
@@ -211,48 +213,6 @@ static void convert_rgb32_to_rgb24_ssse3(const BYTE *srcp, BYTE *dstp, size_t sr
   }
 }
 
-#ifdef X86_32
-
-static void convert_rgb32_to_rgb24_mmx(const BYTE *srcp, BYTE *dstp, size_t src_pitch, size_t dst_pitch, size_t width, size_t height) {
-  size_t mod4_width = width & (~size_t(3));
-  __m64 low_pixel_mask = _mm_set_pi32(0, 0x00FFFFFF);
-  __m64 high_pixel_mask = _mm_set_pi32(0x00FFFFFF, 0);
-
-  for (size_t y = 0; y < height; ++y) {
-    for (size_t x = 0; x < mod4_width; x+= 4) {
-      __m64 src01 = *reinterpret_cast<const __m64*>(srcp+x*4); //a1r1 g1b1 a0r0 g0b0
-      __m64 src23 = *reinterpret_cast<const __m64*>(srcp+x*4+8); //a3r3 g3b3 a2r2 g2b2
-
-      __m64 p0 = _mm_and_si64(src01, low_pixel_mask); //0000 0000 00r0 g0b0
-      __m64 p1 = _mm_and_si64(src01, high_pixel_mask); //00r1 g1b1 0000 0000
-      __m64 p2 = _mm_and_si64(src23, low_pixel_mask); //0000 0000 00r2 g2b2
-      __m64 p3 = _mm_and_si64(src23, high_pixel_mask); //00r3 g3b3 0000 0000
-
-      __m64 dst01 = _mm_or_si64(p0, _mm_srli_si64(p1, 8)); //0000 r1g1 b1r0 g0b0
-      p3 = _mm_srli_si64(p3, 24); //0000 0000 r3g3 b300
-
-      __m64 dst012 = _mm_or_si64(dst01, _mm_slli_si64(p2, 48));  //g2b2 r1g1 b1r0 g0b0
-      __m64 dst23 = _mm_or_si64(p3, _mm_srli_si64(p2, 16)); //0000 0000 r3g3 b3r2
-
-      *reinterpret_cast<__m64*>(dstp+x*3) = dst012;
-      *reinterpret_cast<int*>(dstp+x*3+8) = _mm_cvtsi64_si32(dst23);
-    }
-
-    for (size_t x = mod4_width; x < width; ++x) {
-      dstp[x*3+0] = srcp[x*4+0];
-      dstp[x*3+1] = srcp[x*4+1];
-      dstp[x*3+2] = srcp[x*4+2];
-    }
-
-    srcp += src_pitch;
-    dstp += dst_pitch;
-  }
-
-  _mm_empty();
-}
-
-#endif // X86_32
-
 static void convert_rgb32_to_rgb24_c(const BYTE *srcp, BYTE *dstp, size_t src_pitch, size_t dst_pitch, size_t width, size_t height) {
   for (size_t y = height; y > 0; --y) {
     size_t x;
@@ -278,17 +238,11 @@ PVideoFrame __stdcall RGB32to24::GetFrame(int n, IScriptEnvironment* env)
   size_t src_pitch = src->GetPitch();
   size_t dst_pitch = dst->GetPitch();
 
-  if ((env->GetCPUFlags() & CPUF_SSSE3) && IsPtrAligned(srcp, 16)) {
-    convert_rgb32_to_rgb24_ssse3(srcp, dstp, src_pitch, dst_pitch, vi.width, vi.height);
-  } 
-  else
-#ifdef X86_32
-  if (env->GetCPUFlags() & CPUF_MMX)
+  if ((env->GetCPUFlags() & CPUF_SSSE3) && IsPtrAligned(srcp, 16))
   {
-    convert_rgb32_to_rgb24_mmx(srcp, dstp, src_pitch, dst_pitch, vi.width, vi.height);
+    convert_rgb32_to_rgb24_ssse3(srcp, dstp, src_pitch, dst_pitch, vi.width, vi.height);
   }
-  else 
-#endif
+  else
   {
 	 convert_rgb32_to_rgb24_c(srcp, dstp, src_pitch, dst_pitch, vi.width, vi.height);
   }
