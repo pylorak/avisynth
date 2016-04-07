@@ -4,19 +4,10 @@
 #include <string>
 #include <map>
 #include <vector>
-#include <avs/win.h>
 #include "internal.h"
 
 class IScriptEnvironment2;
-
-struct PluginFile
-{
-  std::string FilePath; // Fully qualified, canonical file path
-  std::string BaseName; // Only file name, without extension
-  HMODULE Library;      // LoadLibrary handle
-
-  PluginFile(const std::string &filePath);
-};
+struct PluginFile;
 
 struct StdStriComparer
 {
@@ -26,7 +17,7 @@ struct StdStriComparer
   }
 };
 
-typedef std::vector<AVSFunction> FunctionList;
+typedef std::vector<const AVSFunction*> FunctionList;
 typedef std::map<std::string,FunctionList,StdStriComparer> FunctionMap;
 class PluginManager
 {
@@ -34,8 +25,9 @@ private:
   IScriptEnvironment2 *Env;
   PluginFile *PluginInLoad;
   std::vector<std::string> AutoloadDirs;
+  std::vector<PluginFile> AutoLoadedImports;
+  std::vector<PluginFile> AutoLoadedPlugins;
   std::vector<PluginFile> LoadedPlugins;
-  std::vector<PluginFile> LoadedImports;
   FunctionMap ExternalFunctions;
   FunctionMap AutoloadedFunctions;
   bool AutoloadExecuted;
@@ -44,7 +36,7 @@ private:
   bool TryAsAvs26(PluginFile &plugin, AVSValue *result);
   bool TryAsAvs25(PluginFile &plugin, AVSValue *result);
   bool TryAsAvsC(PluginFile &plugin, AVSValue *result);
-  void UpdateFunctionExports(const AVSFunction &func, const char *exportVar);
+  void UpdateFunctionExports(const char* funcName, const char* funcParams, const char *exportVar);
   
   const AVSFunction* Lookup(const FunctionMap& map,
     const char* search_name,
@@ -61,11 +53,14 @@ public:
 
   void ClearAutoloadDirs();
   void AddAutoloadDir(const std::string &dir, bool toFront);
+
   bool LoadPlugin(PluginFile &plugin, bool throwOnError, AVSValue *result);
+  bool LoadPlugin(const char* path, bool throwOnError, AVSValue *result);
 
   bool HasAutoloadExecuted() const { return AutoloadExecuted; }
 
   bool FunctionExists(const char* name) const;
+  std::string PluginLoading() const;    // Returns the basename of the plugin DLL that is currently being loaded, or NULL if no plugin is being loaded
   void AutoloadPlugins();
   void AddFunction(const char* name, const char* params, IScriptEnvironment::ApplyFunc apply, void* user_data, const char *exportVar);
   const AVSFunction* Lookup(const char* search_name,

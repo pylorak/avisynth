@@ -3,38 +3,38 @@
 #define AppId "{AC78780F-BACA-4805-8D4F-AE1B52B7E7D3}"
 #define AvsGitURL "https://github.com/pylorak/avisynth"
 #define AvsWebURL "http://www.avs-plus.net"
-#define AvsVersionFriendly "1.0"
 
-#define BuildDir32 "..\..\..\build-vs2012-x86"
-#define BuildDir64 "..\..\..\build-vs2012-x64"
-#define BuildType "git" 
-#define VcVersion "Microsoft Visual C++ Redistributable 2012 Update 4"
+#define BuildDir32 "..\..\..\build-vs2013-x86"
+#define BuildDir64 "..\..\..\build-vs2013-x64"
 
-#define AvsVersion GetFileVersion(AddBackslash(BuildDir32) + "Output\AviSynth.dll")
+#define VcVersion "Microsoft Visual C++ Redistributable 2013"
 #define BuildDate GetFileDateTimeString(AddBackslash(BuildDir32) + "Output\AviSynth.dll", 'yyyy/mm/dd', '-',);
-#if BuildType == "git"
-  #expr Exec("cmd", "/C update_git_rev.bat", SourcePath, 1)
-  #define GitRev FileRead(FileOpen(AddBackslash(SourcePath)+ "git_rev.txt"));
-  #expr Delete(GitRev,7,33)  
-#endif 
+
+#expr Exec("powershell", "-ExecutionPolicy unrestricted -File update_git_rev.ps1", SourcePath, 1)
+#define IniFile AddBackslash(SourcePath) + "git_rev.ini"
+#define RevisionNumber  ReadIni(IniFile, "Version", "RevisionNumber" )
+#define Revision        ReadIni(IniFile, "Version", "Revision"       )
+#define IsRelease       ReadIni(IniFile, "Version", "IsRelease"      )
+#define Version         ReadIni(IniFile, "Version", "Version"        )
+#define Branch          ReadIni(IniFile, "Version", "Branch"         )
 
 [Setup]
 AppId={{#AppId}
 AppName={#AvsName}
-AppVersion={#AvsVersion}
-#ifdef GitRev                                                         
-  AppVerName={#AvsName} {#AvsVersion} (g{#GitRev})
-  OutputBaseFilename={#AvsName}-{#AvsVersion}-g{#GitRev}
+AppVersion={#Version}.{#RevisionNumber}
+#if IsRelease == "True"
+  AppVerName={#AvsName} {#Version}
+  OutputBaseFilename={#AvsName}-v{#Version}
 #else
-  AppVerName={#AvsName} {#AvsVersionFriendly}
-  OutputBaseFilename={#AvsName}-{#AvsVersionFriendly}
+  AppVerName={#AvsName} {#Version} r{#RevisionNumber}
+  OutputBaseFilename={#AvsName}-{#Branch}-v{#Version}-r{#RevisionNumber}-{#Revision}
 #endif
 AppPublisher={#AvsPublisher}
 AppPublisherURL={#AvsWebURL}
 AppSupportURL={#AvsWebURL}/get_started.html
 AppUpdatesURL={#AvsGitURL}/releases
 AppReadmeFile={#AvsGitURL}/blob/master/README.rst
-VersionInfoVersion={#AvsVersion}
+VersionInfoVersion={#Version}.{#RevisionNumber}
 DefaultDirName={pf}\{#AvsName}
 DefaultGroupName={#AvsName}
 DisableProgramGroupPage=yes
@@ -44,6 +44,7 @@ UninstallDisplayIcon=..\Icons\Ico\InstIcon.ico
 WizardImageFile=WizardImageBig.bmp
 WizardSmallImageFile=WizardImageSmall.bmp
 ChangesAssociations=yes
+ChangesEnvironment=yes
 
 Compression=lzma2/ultra
 SolidCompression=yes
@@ -76,14 +77,14 @@ Name: "main\avs64"; Description: "{#AvsName} (x64)"; Types: full compact custom;
 Name: "docs"; Description: "{cm:CmpDocs}";
 Name: "docs\enall"; Description: "{cm:CmpDocsEn}"; Types: full; Languages: not en
 Name: "docs\en"; Description: "{cm:CmpDocsEn}"; Types: full compact custom; Languages: en
-Name: "docs\cs"; Description: "{cm:CmpDocsCs}"; Types: full compact custom; Languages: cs
-Name: "docs\de"; Description: "{cm:CmpDocsDe}"; Types: full compact custom; Languages: de
-Name: "docs\fr"; Description: "{cm:CmpDocsFr}"; Types: full compact custom; Languages: fr
-Name: "docs\it"; Description: "{cm:CmpDocsIt}"; Types: full compact custom; Languages: it
-Name: "docs\ja"; Description: "{cm:CmpDocsJa}"; Types: full compact custom; Languages: ja
-Name: "docs\pl"; Description: "{cm:CmpDocsPl}"; Types: full compact custom; Languages: pl
-Name: "docs\pt"; Description: "{cm:CmpDocsPt}"; Types: full compact custom; Languages: pt pt_br
-Name: "docs\ru"; Description: "{cm:CmpDocsRu}"; Types: full compact custom; Languages: ru
+;Name: "docs\cs"; Description: "{cm:CmpDocsCs}"; Types: full compact custom; Languages: cs
+;Name: "docs\de"; Description: "{cm:CmpDocsDe}"; Types: full compact custom; Languages: de
+;Name: "docs\fr"; Description: "{cm:CmpDocsFr}"; Types: full compact custom; Languages: fr
+;Name: "docs\it"; Description: "{cm:CmpDocsIt}"; Types: full compact custom; Languages: it
+;Name: "docs\ja"; Description: "{cm:CmpDocsJa}"; Types: full compact custom; Languages: ja
+;Name: "docs\pl"; Description: "{cm:CmpDocsPl}"; Types: full compact custom; Languages: pl
+;Name: "docs\pt"; Description: "{cm:CmpDocsPt}"; Types: full compact custom; Languages: pt pt_br
+;Name: "docs\ru"; Description: "{cm:CmpDocsRu}"; Types: full compact custom; Languages: ru
 
 Name: "examples"; Description: "{cm:CmpDocsExamples}"; Types: full compact custom
 Name: "sdk"; Description: "{cm:CmpSdk,{#AvsName}}"; Types: full custom
@@ -126,17 +127,19 @@ Source: "..\ColorPresets\*"; DestDir:{code:GetAvsDirsPlus|PlugPlus64}; Component
 Source: "..\Prerequisites\vcredist_x64.exe"; DestDir: {app}; Components: main\avs64; Flags: deleteafterinstall
 
 Source: "..\docs\*.css"; DestDir: "{app}\docs"; Components: docs; Flags: ignoreversion
-Source: "..\docs\czech\*"; DestDir: "{app}\docs\Czech"; Components: docs\cs; Flags: ignoreversion recursesubdirs 
+;Source: "..\docs\czech\*"; DestDir: "{app}\docs\Czech"; Components: docs\cs; Flags: ignoreversion recursesubdirs 
 Source: "..\docs\english\*"; DestDir: "{app}\docs\English"; Components: docs\en docs\enall; Flags: ignoreversion recursesubdirs 
-Source: "..\docs\french\*"; DestDir: "{app}\docs\French"; Components: docs\fr; Flags: ignoreversion recursesubdirs 
-Source: "..\docs\french\*"; DestDir: "{app}\docs\German"; Components: docs\de; Flags: ignoreversion recursesubdirs 
-Source: "..\docs\italian\*"; DestDir: "{app}\docs\Italian"; Components: docs\it; Flags: ignoreversion recursesubdirs 
-Source: "..\docs\japanese\*"; DestDir: "{app}\docs\Japanese"; Components: docs\ja; Flags: ignoreversion recursesubdirs 
-Source: "..\docs\polish\*"; DestDir: "{app}\docs\Polish"; Components: docs\pl; Flags: ignoreversion recursesubdirs 
-Source: "..\docs\portugese\*"; DestDir: "{app}\docs\Portuguese"; Components: docs\pt; Flags: ignoreversion recursesubdirs 
-Source: "..\docs\russian\*"; DestDir: "{app}\docs\Russian"; Components: docs\ru; Flags: ignoreversion recursesubdirs 
+;Source: "..\docs\french\*"; DestDir: "{app}\docs\French"; Components: docs\fr; Flags: ignoreversion recursesubdirs 
+;Source: "..\docs\german\*"; DestDir: "{app}\docs\German"; Components: docs\de; Flags: ignoreversion recursesubdirs 
+;Source: "..\docs\italian\*"; DestDir: "{app}\docs\Italian"; Components: docs\it; Flags: ignoreversion recursesubdirs 
+;Source: "..\docs\japanese\*"; DestDir: "{app}\docs\Japanese"; Components: docs\ja; Flags: ignoreversion recursesubdirs 
+;Source: "..\docs\polish\*"; DestDir: "{app}\docs\Polish"; Components: docs\pl; Flags: ignoreversion recursesubdirs 
+;Source: "..\docs\portugese\*"; DestDir: "{app}\docs\Portuguese"; Components: docs\pt; Flags: ignoreversion recursesubdirs 
+;Source: "..\docs\russian\*"; DestDir: "{app}\docs\Russian"; Components: docs\ru; Flags: ignoreversion recursesubdirs 
 
 Source: "..\FilterSDK\*"; DestDir: "{app}\FilterSDK"; Components: sdk; Flags: ignoreversion recursesubdirs
+Source: "..\..\avs_core\include\*"; DestDir: "{app}\FilterSDK\include"; Components: sdk; Flags: ignoreversion recursesubdirs
+
 Source: "..\Examples\*"; DestDir: "{app}\Examples"; Components: examples; Flags: recursesubdirs 
 
 [Registry]
@@ -175,6 +178,8 @@ Root: HKLM64; Subkey: "Software\AviSynth"; ValueName:""; ValueType: string; Valu
 Root: HKLM64; Subkey: "Software\AviSynth"; ValueName:"plugindir2_5"; ValueType: string; ValueData: "{code:GetAvsDirsPlus|Plug64}"; Components: main\avs64; Check:IsWin64; Flags: uninsdeletevalue
 Root: HKLM64; Subkey: "Software\AviSynth"; ValueName:"plugindir+"; ValueType: string; ValueData: "{code:GetAvsDirsPlus|PlugPlus64}"; Components: main\avs64; Check:IsWin64; Flags: uninsdeletevalue
 
+;Set SDK Environment Variable
+Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueName: "AVISYNTH_SDK_PATH"; ValueType: string; ValueData: "{app}\FilterSDK"; Components: sdk; Flags: uninsdeletevalue
 ;Delete Legacy AVS Install Entry
 Root: HKLM32; Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\AviSynth"; Flags: deletekey; Components: avsmig\backup
 ;Add entry for legacy AviSynth Program Folder

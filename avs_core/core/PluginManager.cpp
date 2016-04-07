@@ -1,12 +1,13 @@
 #include "PluginManager.h"
 #include <avisynth.h>
+#include <unordered_set>
 #include <avisynth_c.h>
 #include "strings.h"
 #include <cassert>
 
 typedef const char* (__stdcall *AvisynthPluginInit3Func)(IScriptEnvironment* env, const AVS_Linkage* const vectors);
 typedef const char* (__stdcall *AvisynthPluginInit2Func)(IScriptEnvironment* env);
-typedef const char * (AVSC_CC *AvisynthCPluginInitFunc)(AVS_ScriptEnvironment* env);
+typedef const char* (AVSC_CC *AvisynthCPluginInitFunc)(AVS_ScriptEnvironment* env);
 
 const char RegAvisynthKey[] = "Software\\Avisynth";
 const char RegPluginDirClassic[] = "PluginDir2_5";
@@ -19,6 +20,21 @@ const char RegPluginDirPlus[] = "PluginDir+";
 ---------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------
 */
+
+// Translates a Windows error code to a human-readable text message.
+static std::string GetLastErrorText(DWORD nErrorCode)
+{
+  char* msg;
+  // Ask Windows to prepare a standard message for a GetLastError() code:
+  if (0 == FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, nErrorCode, 0, (LPSTR)&msg, 0, NULL))
+    return("Unknown error");
+  else
+  {
+    std::string ret(msg);
+    LocalFree(msg);
+    return ret;
+  }
+}
 
 static bool GetRegString(HKEY rootKey, const char path[], const char entry[], std::string *result) {
     HKEY AvisynthKey;
@@ -144,6 +160,60 @@ static bool IsValidParameterString(const char* p) {
 ---------------------------------------------------------------------------------
 */
 
+AVSFunction::AVSFunction(void*) : 
+    AVSFunction(NULL, NULL, NULL, NULL, NULL)
+{}
+
+AVSFunction::AVSFunction(const char* _name, const char* _plugin_basename, const char* _param_types, apply_func_t _apply) :
+    AVSFunction(_name, _plugin_basename, _param_types, _apply, NULL)
+{}
+
+AVSFunction::AVSFunction(const char* _name, const char* _plugin_basename, const char* _param_types, apply_func_t _apply, void *_user_data) :
+    apply(_apply), name(NULL), canon_name(NULL), param_types(NULL), user_data(_user_data)
+{
+    if ( NULL != _name )
+    {
+        size_t len = strlen(_name);
+        name = new char[len+1];
+        memcpy(name, _name, len);
+        name[len] = 0;
+    }
+
+    if ( NULL != _param_types )
+    {
+        size_t len = strlen(_param_types);
+        param_types = new char[len+1];
+        memcpy(param_types, _param_types, len);
+        param_types[len] = 0;
+    }
+
+    if ( (NULL != _name) && (NULL != _plugin_basename) )
+    {
+        std::string cn(_plugin_basename);
+        cn.append("_").append(_name);
+        canon_name = new char[cn.size()+1];
+        memcpy(canon_name, cn.c_str(), cn.size());
+        canon_name[cn.size()] = 0;
+    }
+}
+
+AVSFunction::~AVSFunction()
+{
+    delete [] canon_name;
+    delete [] name;
+    delete [] param_types;
+}
+
+bool AVSFunction::empty() const
+{
+    return NULL == name;
+}
+
+bool AVSFunction::IsScriptFunction() const
+{
+    return apply == &(ScriptFunction::Execute);
+}
+
 bool AVSFunction::SingleTypeMatch(char type, const AVSValue& arg, bool strict) {
   switch (type) {
     case '.': return true;
@@ -264,6 +334,16 @@ bool AVSFunction::ArgNameMatch(const char* param_types, size_t args_names_count,
 ---------------------------------------------------------------------------------
 */
 
+#include <avs/win.h>
+struct PluginFile
+{
+  std::string FilePath;             // Fully qualified, canonical file path
+  std::string BaseName;             // Only file name, without extension
+  HMODULE Library;                  // LoadLibrary handle
+
+  PluginFile(const std::string &filePath);
+};
+
 PluginFile::PluginFile(const std::string &filePath) : 
   FilePath(GetFullPathNameWrap(filePath)), BaseName(), Library(NULL)
 {
@@ -378,10 +458,8 @@ void PluginManager::AutoloadPlugins()
   const char *scriptFilter = "*.avsi";
 
   // Load binary plugins
-  for (std::vector<std::string>::const_iterator dir_it = AutoloadDirs.begin(); dir_it != AutoloadDirs.end(); ++dir_it )
+  for (const std::string& dir : AutoloadDirs)
   {
-    const std::string &dir = *dir_it;
-
     // Append file search filter to directory path
     std::string filePattern = concat(dir, binaryFilter);
 
@@ -398,9 +476,9 @@ void PluginManager::AutoloadPlugins()
         PluginFile p(concat(dir, fileData.cFileName));
 
         // Search for loaded plugins with the same base name.
-        for (size_t i = 0; i < LoadedPlugins.size(); ++i)
+        for (size_t i = 0; i < AutoLoadedPlugins.size(); ++i)
         {
-          if (streqi(LoadedPlugins[i].BaseName.c_str(), p.BaseName.c_str()))
+          if (streqi(AutoLoadedPlugins[i].BaseName.c_str(), p.BaseName.c_str()))
           {
             // Prevent loading a plugin with a basename that is 
             // already loaded (from another autoload folder).
@@ -417,9 +495,8 @@ void PluginManager::AutoloadPlugins()
   }
 
   // Load script imports
-  for (std::vector<std::string>::const_iterator dir_it = AutoloadDirs.begin(); dir_it != AutoloadDirs.end(); ++dir_it )
+  for (const std::string& dir : AutoloadDirs)
   {
-    const std::string &dir = *dir_it;
     CWDChanger cwdchange(dir.c_str());
 
     // Append file search filter to directory path
@@ -438,9 +515,9 @@ void PluginManager::AutoloadPlugins()
         PluginFile p(concat(dir, fileData.cFileName));
 
         // Search for loaded imports with the same base name.
-        for (size_t i = 0; i < LoadedImports.size(); ++i)
+        for (size_t i = 0; i < AutoLoadedImports.size(); ++i)
         {
-          if (streqi(LoadedImports[i].BaseName.c_str(), p.BaseName.c_str()))
+          if (streqi(AutoLoadedImports[i].BaseName.c_str(), p.BaseName.c_str()))
           {
             // Prevent loading a plugin with a basename that is 
             // already loaded (from another autoload folder).
@@ -450,7 +527,7 @@ void PluginManager::AutoloadPlugins()
 
         // Try to load script
         Env->Invoke("Import", p.FilePath.c_str());
-        LoadedImports.push_back(p);
+        AutoLoadedImports.push_back(p);
       }
     } // for bContinue
     FindClose(hFind);
@@ -461,17 +538,45 @@ void PluginManager::AutoloadPlugins()
 
 PluginManager::~PluginManager()
 {
+  // Delete all AVSFunction objects that we created
+  std::unordered_set<const AVSFunction*> function_set;
+  for (const auto& lists : ExternalFunctions)
+  {
+      const FunctionList& funcList = lists.second;
+      for (const auto& func : funcList)
+        function_set.insert(func);
+  }
+  for (const auto& lists : AutoloadedFunctions)
+  {
+      const FunctionList& funcList = lists.second;
+      for (const auto& func : funcList)
+        function_set.insert(func);
+  }
+  for (const auto& func : function_set)
+  {
+      delete func;
+  }
+
+
+  // Unload plugin binaries
   for (size_t i = 0; i < LoadedPlugins.size(); ++i)
   {
     assert(LoadedPlugins[i].Library);
     FreeLibrary(LoadedPlugins[i].Library);
     LoadedPlugins[i].Library = NULL;
   }
+  for (size_t i = 0; i < AutoLoadedPlugins.size(); ++i)
+  {
+    assert(AutoLoadedPlugins[i].Library);
+    FreeLibrary(AutoLoadedPlugins[i].Library);
+    AutoLoadedPlugins[i].Library = NULL;
+  }
+
   Env = NULL;
   PluginInLoad = NULL;
 }
 
-void PluginManager::UpdateFunctionExports(const AVSFunction &func, const char *exportVar)
+void PluginManager::UpdateFunctionExports(const char* funcName, const char* funcParams, const char *exportVar)
 {
   if (exportVar == NULL)
     exportVar = "$PluginFunctions$";
@@ -481,26 +586,33 @@ void PluginManager::UpdateFunctionExports(const AVSFunction &func, const char *e
   std::string FnList(oldFnList);
   if (FnList.size() > 0)    // if the list is not empty...
     FnList.push_back(' ');  // ...add a delimiting whitespace 
-  FnList.append(func.name);
-  Env->SetGlobalVar(exportVar, AVSValue( Env->SaveString(FnList.c_str(), FnList.length() + 1) ));
+  FnList.append(funcName);
+  Env->SetGlobalVar(exportVar, AVSValue( Env->SaveString(FnList.c_str(), FnList.size()) ));
 
   // Update $Plugin!...!Param$
   std::string param_id;
   param_id.reserve(128);
   param_id.append("$Plugin!");
-  param_id.append(func.name);
+  param_id.append(funcName);
   param_id.append("!Param$");
-  Env->SetGlobalVar( Env->SaveString(param_id.c_str(), param_id.length() + 1), AVSValue(func.param_types) );
+  Env->SetGlobalVar(Env->SaveString(param_id.c_str(), param_id.size()), AVSValue(Env->SaveString(funcParams)));
+}
+
+bool PluginManager::LoadPlugin(const char* path, bool throwOnError, AVSValue *result)
+{
+  return LoadPlugin(PluginFile(path), throwOnError, result);
 }
 
 bool PluginManager::LoadPlugin(PluginFile &plugin, bool throwOnError, AVSValue *result)
 {
-  for (size_t i = 0; i < LoadedPlugins.size(); ++i)
+  std::vector<PluginFile>& PluginList = Autoloading ? AutoLoadedPlugins : LoadedPlugins;
+
+  for (size_t i = 0; i < PluginList.size(); ++i)
   {
-    if (streqi(LoadedPlugins[i].FilePath.c_str(), plugin.FilePath.c_str()))
+    if (streqi(PluginList[i].FilePath.c_str(), plugin.FilePath.c_str()))
     {
       // Imitate successful loading if the plugin is already loaded
-      plugin = LoadedPlugins[i];
+      plugin = PluginList[i];
       return true;
     }
   }
@@ -515,7 +627,10 @@ bool PluginManager::LoadPlugin(PluginFile &plugin, bool throwOnError, AVSValue *
   if (plugin.Library == NULL)
   {
     if (throwOnError)
-      Env->ThrowError("Cannot load file '%s'.", plugin.FilePath.c_str());
+    {
+      DWORD errCode = GetLastError();
+      Env->ThrowError("Cannot load file '%s'. Platform returned code %d:\n%s", plugin.FilePath.c_str(), errCode, GetLastErrorText(errCode).c_str());
+    }
     else
       return false;
   }
@@ -538,7 +653,7 @@ bool PluginManager::LoadPlugin(PluginFile &plugin, bool throwOnError, AVSValue *
     }
   }
 
-  LoadedPlugins.push_back(plugin);
+  PluginList.push_back(plugin);
   return true;
 }
 
@@ -553,7 +668,7 @@ const AVSFunction* PluginManager::Lookup(const FunctionMap& map, const char* sea
           func_it != list_it->second.rend();
           ++func_it)
     {
-      const AVSFunction *func = &(*func_it);
+      const AVSFunction *func = *func_it;
       if (AVSFunction::TypeMatch(func->param_types, args, num_args, strict, Env) &&
           AVSFunction::ArgNameMatch(func->param_types, args_names_count, arg_names)
          )
@@ -588,34 +703,34 @@ void PluginManager::AddFunction(const char* name, const char* params, IScriptEnv
   if (!IsValidParameterString(params))
     Env->ThrowError("%s has an invalid parameter string (bug in filter)", name);
 
-  const char *cname = Env->SaveString(name);
-  const char *cparams = Env->SaveString(params);
-
   FunctionMap& functions = Autoloading ? AutoloadedFunctions : ExternalFunctions;
 
-  FunctionList& list = functions[name];
-  AVSFunction newFunc;
-  newFunc.name = cname;
-  newFunc.param_types = cparams;
-  newFunc.apply = apply;
-  newFunc.user_data = user_data;
-  list.push_back(newFunc);
-  UpdateFunctionExports(newFunc, exportVar);
-
+  AVSFunction *newFunc = NULL;
   if (PluginInLoad != NULL)
   {
-    AVSFunction newFuncWithBase;
-    std::string nameWithBase(PluginInLoad->BaseName);
-    nameWithBase.append("_").append(name);
-    FunctionList& baseList = functions[nameWithBase];
-
-    newFuncWithBase.name = nameWithBase.c_str();
-    newFuncWithBase.param_types = cparams;
-    newFuncWithBase.apply = apply;
-    newFuncWithBase.user_data = user_data;
-    baseList.push_back(newFuncWithBase);
-    UpdateFunctionExports(newFuncWithBase, exportVar);
+      newFunc = new AVSFunction(name, PluginInLoad->BaseName.c_str(), params, apply, user_data);
   }
+  else
+  {
+      newFunc = new AVSFunction(name, NULL, params, apply, user_data);
+      assert(newFunc->IsScriptFunction());
+  }
+  functions[newFunc->name].push_back(newFunc);
+  UpdateFunctionExports(newFunc->name, newFunc->param_types, exportVar);
+
+  if (NULL != newFunc->canon_name)
+  {
+      functions[newFunc->canon_name].push_back(newFunc);
+      UpdateFunctionExports(newFunc->canon_name, newFunc->param_types, exportVar);
+  }
+}
+
+std::string PluginManager::PluginLoading() const
+{
+    if (NULL == PluginInLoad)
+        return std::string();
+    else
+        return PluginInLoad->BaseName;
 }
 
 bool PluginManager::TryAsAvs26(PluginFile &plugin, AVSValue *result)
@@ -668,53 +783,53 @@ bool PluginManager::TryAsAvsC(PluginFile &plugin, AVSValue *result)
   {
     PluginInLoad = &plugin;
     {
-	    AVS_ScriptEnvironment e;
-	    e.env = Env;
-	    AVS_ScriptEnvironment *pe;
-	    pe = &e;
-	    const char *s = NULL;
+        AVS_ScriptEnvironment e;
+        e.env = Env;
+        AVS_ScriptEnvironment *pe;
+        pe = &e;
+        const char *s = NULL;
 #ifdef X86_32
-	    int callok = 1; // (stdcall)
-	    __asm // Tritical - Jan 2006
-	    {
-		    push eax
-		    push edx
+        int callok = 1; // (stdcall)
+        __asm // Tritical - Jan 2006
+        {
+            push eax
+            push edx
 
-		    push 0x12345678		// Stash a known value
+            push 0x12345678		// Stash a known value
 
-		    mov eax, pe			// Env pointer
-		    push eax			// Arg1
-		    call AvisynthCPluginInit			// avisynth_c_plugin_init
+            mov eax, pe			// Env pointer
+            push eax			// Arg1
+            call AvisynthCPluginInit			// avisynth_c_plugin_init
 
-		    lea edx, s			// return value is in eax
-		    mov DWORD PTR[edx], eax
+            lea edx, s			// return value is in eax
+            mov DWORD PTR[edx], eax
 
-		    pop eax				// Get top of stack
-		    cmp eax, 0x12345678	// Was it our known value?
-		    je end				// Yes! Stack was cleaned up, was a stdcall
+            pop eax				// Get top of stack
+            cmp eax, 0x12345678	// Was it our known value?
+            je end				// Yes! Stack was cleaned up, was a stdcall
 
-		    lea edx, callok
-		    mov BYTE PTR[edx], 0 // Set callok to 0 (_cdecl)
+            lea edx, callok
+            mov BYTE PTR[edx], 0 // Set callok to 0 (_cdecl)
 
-		    pop eax				// Get 2nd top of stack
-		    cmp eax, 0x12345678	// Was this our known value?
-		    je end				// Yes! Stack is now correctly cleaned up, was a _cdecl
+            pop eax				// Get 2nd top of stack
+            cmp eax, 0x12345678	// Was this our known value?
+            je end				// Yes! Stack is now correctly cleaned up, was a _cdecl
 
-		    mov BYTE PTR[edx], 2 // Set callok to 2 (bad stack)
+            mov BYTE PTR[edx], 2 // Set callok to 2 (bad stack)
     end:
-		    pop edx
-		    pop eax
-	    }
+            pop edx
+            pop eax
+        }
       switch(callok)
       {
       case 0:   // cdecl
 #ifdef AVSC_USE_STDCALL
-		    Env->ThrowError("Avisynth 2 C Plugin '%s' has wrong calling convention! Must be _stdcall.", plugin.BaseName.c_str());
+            Env->ThrowError("Avisynth 2 C Plugin '%s' has wrong calling convention! Must be _stdcall.", plugin.BaseName.c_str());
 #endif
         break;
       case 1:   // stdcall
 #ifndef AVSC_USE_STDCALL
-		    Env->ThrowError("Avisynth 2 C Plugin '%s' has wrong calling convention! Must be _cdecl.", plugin.BaseName.c_str());
+            Env->ThrowError("Avisynth 2 C Plugin '%s' has wrong calling convention! Must be _cdecl.", plugin.BaseName.c_str());
 #endif
         break;
       case 2:
@@ -724,7 +839,7 @@ bool PluginManager::TryAsAvsC(PluginFile &plugin, AVSValue *result)
       s = AvisynthCPluginInit(pe);
 #endif
 //	    if (s == 0)
-	//	    Env->ThrowError("Avisynth 2 C Plugin '%s' returned a NULL pointer.", plugin.BaseName.c_str());
+    //	    Env->ThrowError("Avisynth 2 C Plugin '%s' returned a NULL pointer.", plugin.BaseName.c_str());
 
       *result = AVSValue(s);
     }
@@ -757,8 +872,8 @@ AVSValue LoadPlugin(AVSValue args, void* user_data, IScriptEnvironment* env)
 }
 
 extern const AVSFunction Plugin_functions[] = {
-  {"LoadPlugin", "s+", LoadPlugin},
-  {"LoadCPlugin", "s+", LoadPlugin },          // for compatibility with older scripts
-  {"Load_Stdcall_Plugin", "s+", LoadPlugin },  // for compatibility with older scripts
+  {"LoadPlugin", BUILTIN_FUNC_PREFIX, "s+", LoadPlugin},
+  {"LoadCPlugin", BUILTIN_FUNC_PREFIX, "s+", LoadPlugin },          // for compatibility with older scripts
+  {"Load_Stdcall_Plugin", BUILTIN_FUNC_PREFIX, "s+", LoadPlugin },  // for compatibility with older scripts
   { 0 }
 };
