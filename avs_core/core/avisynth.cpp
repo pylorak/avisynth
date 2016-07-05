@@ -1975,6 +1975,18 @@ PVideoFrame __stdcall ScriptEnvironment::NewVideoFrame(const VideoInfo& vi, int 
     case VideoInfo::CS_YV411:
     case VideoInfo::CS_I420:
     // AVS16 do not reject when a filter requests it
+    case VideoInfo::CS_YUV420P10:
+    case VideoInfo::CS_YUV422P10:
+    case VideoInfo::CS_YUV444P10:
+    case VideoInfo::CS_Y10:
+    case VideoInfo::CS_YUV420P12:
+    case VideoInfo::CS_YUV422P12:
+    case VideoInfo::CS_YUV444P12:
+    case VideoInfo::CS_Y12:
+    case VideoInfo::CS_YUV420P14:
+    case VideoInfo::CS_YUV422P14:
+    case VideoInfo::CS_YUV444P14:
+    case VideoInfo::CS_Y14:
     case VideoInfo::CS_YUV420P16:
     case VideoInfo::CS_YUV422P16:
     case VideoInfo::CS_YUV444P16:

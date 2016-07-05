@@ -311,6 +311,18 @@ int VideoInfo::ComponentSize() const {
   case CS_YUV420PS:
   case CS_Y32:
     return 4;
+  case CS_Y10:
+  case CS_YUV444P10:
+  case CS_YUV422P10:
+  case CS_YUV420P10:
+  case CS_Y12:
+  case CS_YUV444P12:
+  case CS_YUV422P12:
+  case CS_YUV420P12:
+  case CS_Y14:
+  case CS_YUV444P14:
+  case CS_YUV422P14:
+  case CS_YUV420P14:
   case CS_Y16:
   case CS_YUV444P16:
   case CS_YUV422P16:

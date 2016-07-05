@@ -63,6 +63,54 @@ int AVSC_CC avs_is_y8(const AVS_VideoInfo * p)
   { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_Y8    & AVS_CS_PLANAR_FILTER); }
 
 extern "C"
+int AVSC_CC avs_is_yuv444p10(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_YUV444P10 & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_yuv422p10(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_YUV422P10 & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_yuv420p10(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_YUV420P10 & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_y10(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_Y10   & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_yuv444p12(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_YUV444P12 & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_yuv422p12(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_YUV422P12 & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_yuv420p12(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_YUV420P12 & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_y12(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_Y12   & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_yuv444p14(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_YUV444P14 & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_yuv422p14(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_YUV422P14 & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_yuv420p14(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_YUV420P14 & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_y14(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_Y14   & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
 int AVSC_CC avs_is_yuv444p16(const AVS_VideoInfo * p)
   { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_YUV444P16 & AVS_CS_PLANAR_FILTER); }
 
