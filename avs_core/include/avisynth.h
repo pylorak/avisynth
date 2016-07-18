@@ -435,6 +435,8 @@ Code Bits Remark      Classic_RGB  YUV  YUY2  Y_Grey Planar_RGB*
 //  CS_YV12  = 1<<3  Reserved
 //  CS_I420  = 1<<4  Reserved
     CS_RAW32 = 1<<5 | CS_INTERLEAVED,
+    CS_BGR48 = 1<<6 | CS_BGR | CS_INTERLEAVED | CS_Sample_Bits_16,
+    CS_BGR64 = 1<<7 | CS_BGR | CS_INTERLEAVED | CS_Sample_Bits_16,
 
 //  YV12 must be 0xA000008 2.5 Baked API will see all new planar as YV12
 //  I420 must be 0xA000010
@@ -487,7 +489,12 @@ Code Bits Remark      Classic_RGB  YUV  YUY2  Y_Grey Planar_RGB*
     // grey 32
     CS_Y32 = CS_PLANAR | CS_INTERLEAVED | CS_YUV | CS_Sample_Bits_32,                                         // Y   4:0:0 32bit samples
 
-    // todo: rgb
+    // planar rgb
+    CS_GBRP = CS_PLANAR | CS_BGR | CS_Sample_Bits_8,                                                          // Planar RGB
+    CS_GBRP10 = CS_PLANAR | CS_BGR | CS_Sample_Bits_10,                                                       // Planar RGB 10-bit
+    CS_GBRP12 = CS_PLANAR | CS_BGR | CS_Sample_Bits_12,                                                       // Planar RGB 12-bit
+    CS_GBRP14 = CS_PLANAR | CS_BGR | CS_Sample_Bits_14,                                                       // Planar RGB 14-bit
+    CS_GBRP16 = CS_PLANAR | CS_BGR | CS_Sample_Bits_16                                                       // Planar RGB 16-bit
 
 /*
 

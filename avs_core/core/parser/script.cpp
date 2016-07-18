@@ -815,7 +815,11 @@ AVSValue PixelType (AVSValue args, void*, IScriptEnvironment* env) {
 	  return "RGB24";
     case VideoInfo::CS_BGR32 :
 	  return "RGB32";
-    case VideoInfo::CS_YUY2  :
+    case VideoInfo::CS_BGR48 :
+	  return "RGB48";
+    case VideoInfo::CS_BGR64 :
+	  return "RGB64";
+	case VideoInfo::CS_YUY2  :
 	  return "YUY2";
     case VideoInfo::CS_YV24  :
 	  return "YV24";
@@ -846,6 +850,16 @@ AVSValue PixelType (AVSValue args, void*, IScriptEnvironment* env) {
     return "YUV444PS";
     case VideoInfo::CS_Y32       :
     return "Y32";
+    case VideoInfo::CS_GBRP      :
+      return "GBRP";
+    case VideoInfo::CS_GBRP10    :
+      return "GBRP10";
+    case VideoInfo::CS_GBRP12    :
+      return "GBRP12";
+    case VideoInfo::CS_GBRP14    :
+      return "GBRP14";
+    case VideoInfo::CS_GBRP16    :
+      return "GBRP16";
     default:
 	  break;
   }

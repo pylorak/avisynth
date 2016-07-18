@@ -215,6 +215,10 @@ int VideoInfo::BitsPerPixel() const {
         return 24;
       case CS_BGR32:
         return 32;
+      case CS_BGR48:
+        return 48;
+      case CS_BGR64:
+        return 64;
       case CS_YUY2:
         return 16;
       case CS_Y8:
@@ -294,6 +298,7 @@ int VideoInfo::NumComponents() const {
   case CS_Y32:
     return 1;
   case CS_BGR32:
+  case CS_BGR64:
     return 4;
   default:
     return 3;
@@ -327,7 +332,11 @@ int VideoInfo::ComponentSize() const {
   case CS_YUV444P16:
   case CS_YUV422P16:
   case CS_YUV420P16:
-    return 2;
+  case CS_GBRP10:
+  case CS_GBRP12:
+  case CS_GBRP14:
+  case CS_GBRP16:
+      return 2;
   default:
     return 1;
   }

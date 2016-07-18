@@ -229,6 +229,10 @@ static AVSValue __cdecl Create_BlankClip(AVSValue args, void*, IScriptEnvironmen
       vi.pixel_type = VideoInfo::CS_BGR24;
     } else if (!lstrcmpi(pixel_type_string, "RGB32")) {
       vi.pixel_type = VideoInfo::CS_BGR32;
+    } else if (!lstrcmpi(pixel_type_string, "RGB48")) {
+      vi.pixel_type = VideoInfo::CS_BGR48;
+    } else if (!lstrcmpi(pixel_type_string, "RGB64")) {
+      vi.pixel_type = VideoInfo::CS_BGR64;
     } else if (!lstrcmpi(pixel_type_string, "YUV420P16")) {
       vi.pixel_type = VideoInfo::CS_YUV420P16;
     } else if (!lstrcmpi(pixel_type_string, "YUV422P16")) {
@@ -245,8 +249,18 @@ static AVSValue __cdecl Create_BlankClip(AVSValue args, void*, IScriptEnvironmen
       vi.pixel_type = VideoInfo::CS_YUV444PS;
     } else if (!lstrcmpi(pixel_type_string, "Y32")) {
       vi.pixel_type = VideoInfo::CS_Y32;
+    } else if (!lstrcmpi(pixel_type_string, "GBRP")) {
+      vi.pixel_type = VideoInfo::CS_GBRP;
+    } else if (!lstrcmpi(pixel_type_string, "GBRP10")) {
+      vi.pixel_type = VideoInfo::CS_GBRP10;
+    } else if (!lstrcmpi(pixel_type_string, "GBRP12")) {
+      vi.pixel_type = VideoInfo::CS_GBRP12;
+    } else if (!lstrcmpi(pixel_type_string, "GBRP14")) {
+      vi.pixel_type = VideoInfo::CS_GBRP14;
+    } else if (!lstrcmpi(pixel_type_string, "GBRP16")) {
+      vi.pixel_type = VideoInfo::CS_GBRP16;
     } else {
-      env->ThrowError("BlankClip: pixel_type must be \"RGB32\", \"RGB24\", \"YV12\", \"YV24\", \"YV16\", \"Y8\", \n"\
+      env->ThrowError("BlankClip: pixel_type must be \"RGB48\", \"RGB64\", \"RGB32\", \"RGB24\", \"YV12\", \"YV24\", \"YV16\", \"Y8\", \n"\
       "\"YUV420P16\",\"YUV422P16\",\"YUV444P16\",\"Y16\",\"YUV420PS\",\"YUV422PS\",\"YUV444PS\",\"Y32\",\n"\
       "\"YV411\" or \"YUY2\"");
     }

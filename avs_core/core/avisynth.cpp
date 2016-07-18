@@ -1975,6 +1975,8 @@ PVideoFrame __stdcall ScriptEnvironment::NewVideoFrame(const VideoInfo& vi, int 
     case VideoInfo::CS_YV411:
     case VideoInfo::CS_I420:
     // AVS16 do not reject when a filter requests it
+    case VideoInfo::CS_BGR48:
+    case VideoInfo::CS_BGR64:
     case VideoInfo::CS_YUV420P10:
     case VideoInfo::CS_YUV422P10:
     case VideoInfo::CS_YUV444P10:
@@ -1995,7 +1997,12 @@ PVideoFrame __stdcall ScriptEnvironment::NewVideoFrame(const VideoInfo& vi, int 
     case VideoInfo::CS_YUV422PS:
     case VideoInfo::CS_YUV444PS:
     case VideoInfo::CS_Y32:
-      break;
+    case VideoInfo::CS_GBRP:
+    case VideoInfo::CS_GBRP10:
+    case VideoInfo::CS_GBRP12:
+    case VideoInfo::CS_GBRP14:
+    case VideoInfo::CS_GBRP16:
+          break;
     default:
       ThrowError("Filter Error: Filter attempted to create VideoFrame with invalid pixel_type.");
   }

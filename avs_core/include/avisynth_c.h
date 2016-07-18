@@ -117,6 +117,8 @@ enum {
   //  AVS_CS_YV12  = 1<<3  Reserved
   //  AVS_CS_I420  = 1<<4  Reserved
   AVS_CS_RAW32 = 1<<5 | AVS_CS_INTERLEAVED,
+  AVS_CS_BGR48 = 1<<6 | AVS_CS_BGR | AVS_CS_INTERLEAVED | AVS_CS_SAMPLE_BITS_16,
+  AVS_CS_BGR64 = 1<<7 | AVS_CS_BGR | AVS_CS_INTERLEAVED | AVS_CS_SAMPLE_BITS_16,
 
   AVS_CS_YV24  = AVS_CS_PLANAR | AVS_CS_YUV | AVS_CS_SAMPLE_BITS_8 | AVS_CS_VPLANEFIRST | AVS_CS_SUB_HEIGHT_1 | AVS_CS_SUB_WIDTH_1,  // YVU 4:4:4 planar
   AVS_CS_YV16  = AVS_CS_PLANAR | AVS_CS_YUV | AVS_CS_SAMPLE_BITS_8 | AVS_CS_VPLANEFIRST | AVS_CS_SUB_HEIGHT_1 | AVS_CS_SUB_WIDTH_2,  // YVU 4:2:2 planar
@@ -165,9 +167,14 @@ enum {
   // AVS_CS_YV96  = AVS_CS_YUV444PS,
 
   // grey 32
-  AVS_CS_Y32 = AVS_CS_PLANAR | AVS_CS_INTERLEAVED | AVS_CS_YUV | AVS_CS_SAMPLE_BITS_32                                                  // Y   4:0:0 32bit samples
+  AVS_CS_Y32 = AVS_CS_PLANAR | AVS_CS_INTERLEAVED | AVS_CS_YUV | AVS_CS_SAMPLE_BITS_32,                                                  // Y   4:0:0 32bit samples
 
-  // todo: rgb
+  // planar rgb
+  AVS_CS_GBRP = AVS_CS_PLANAR | AVS_CS_BGR | AVS_CS_SAMPLE_BITS_8,                                                                       // Planar RGB
+  AVS_CS_GBRP10 = AVS_CS_PLANAR | AVS_CS_BGR | AVS_CS_SAMPLE_BITS_10,                                                                    // Planar RGB 10-bit
+  AVS_CS_GBRP12 = AVS_CS_PLANAR | AVS_CS_BGR | AVS_CS_SAMPLE_BITS_12,                                                                    // Planar RGB 12-bit
+  AVS_CS_GBRP14 = AVS_CS_PLANAR | AVS_CS_BGR | AVS_CS_SAMPLE_BITS_14,                                                                    // Planar RGB 14-bit
+  AVS_CS_GBRP16 = AVS_CS_PLANAR | AVS_CS_BGR | AVS_CS_SAMPLE_BITS_16                                                                    // Planar RGB 16-bit
 
 };
 
@@ -304,6 +311,10 @@ AVSC_INLINE int avs_is_yuv(const AVS_VideoInfo * p)
 AVSC_INLINE int avs_is_yuy2(const AVS_VideoInfo * p) 
         { return (p->pixel_type & AVS_CS_YUY2) == AVS_CS_YUY2; }  
 
+AVSC_API(int, avs_is_rgb48)(const AVS_VideoInfo * p);
+
+AVSC_API(int, avs_is_rgb64)(const AVS_VideoInfo * p);
+
 AVSC_API(int, avs_is_yv24)(const AVS_VideoInfo * p);
 
 AVSC_API(int, avs_is_yv16)(const AVS_VideoInfo * p);
@@ -353,6 +364,16 @@ AVSC_API(int, avs_is_yuv422ps)(const AVS_VideoInfo * p);
 AVSC_API(int, avs_is_yuv420ps)(const AVS_VideoInfo * p);
 
 AVSC_API(int, avs_is_y32)(const AVS_VideoInfo * p);
+
+AVSC_API(int, avs_is_gbrp)(const AVS_VideoInfo * p);
+
+AVSC_API(int, avs_is_gbrp10)(const AVS_VideoInfo * p);
+
+AVSC_API(int, avs_is_gbrp12)(const AVS_VideoInfo * p);
+
+AVSC_API(int, avs_is_gbrp14)(const AVS_VideoInfo * p);
+
+AVSC_API(int, avs_is_gbrp16)(const AVS_VideoInfo * p);
 
 AVSC_INLINE int avs_is_property(const AVS_VideoInfo * p, int property) 
         { return ((p->image_type & property)==property ); }
@@ -839,6 +860,8 @@ struct AVS_Library {
   AVSC_DECLARE_FUNC(avs_vsprintf);
 
   AVSC_DECLARE_FUNC(avs_get_error);
+  AVSC_DECLARE_FUNC(avs_is_rgb48);
+  AVSC_DECLARE_FUNC(avs_is_rgb64);
   AVSC_DECLARE_FUNC(avs_is_yv24);
   AVSC_DECLARE_FUNC(avs_is_yv16);
   AVSC_DECLARE_FUNC(avs_is_yv12);
@@ -864,6 +887,11 @@ struct AVS_Library {
   AVSC_DECLARE_FUNC(avs_is_yuv422ps);
   AVSC_DECLARE_FUNC(avs_is_yuv420ps);
   AVSC_DECLARE_FUNC(avs_is_y32);
+  AVSC_DECLARE_FUNC(avs_is_gbrp);
+  AVSC_DECLARE_FUNC(avs_is_gbrp10);
+  AVSC_DECLARE_FUNC(avs_is_gbrp12);
+  AVSC_DECLARE_FUNC(avs_is_gbrp14);
+  AVSC_DECLARE_FUNC(avs_is_gbrp16);
   AVSC_DECLARE_FUNC(avs_is_color_space);
 
   AVSC_DECLARE_FUNC(avs_get_plane_width_subsampling);
@@ -938,6 +966,8 @@ AVSC_INLINE AVS_Library * avs_load_library() {
   AVSC_LOAD_FUNC(avs_vsprintf);
 
   AVSC_LOAD_FUNC(avs_get_error);
+  AVSC_LOAD_FUNC(avs_is_rgb48);
+  AVSC_LOAD_FUNC(avs_is_rgb64);
   AVSC_LOAD_FUNC(avs_is_yv24);
   AVSC_LOAD_FUNC(avs_is_yv16);
   AVSC_LOAD_FUNC(avs_is_yv12);
@@ -963,6 +993,11 @@ AVSC_INLINE AVS_Library * avs_load_library() {
   AVSC_LOAD_FUNC(avs_is_yuv422ps);
   AVSC_LOAD_FUNC(avs_is_yuv420ps);
   AVSC_LOAD_FUNC(avs_is_y32);
+  AVSC_LOAD_FUNC(avs_is_gbrp);
+  AVSC_LOAD_FUNC(avs_is_gbrp10);
+  AVSC_LOAD_FUNC(avs_is_gbrp12);
+  AVSC_LOAD_FUNC(avs_is_gbrp14);
+  AVSC_LOAD_FUNC(avs_is_gbrp16);
   AVSC_LOAD_FUNC(avs_is_color_space);
 
   AVSC_LOAD_FUNC(avs_get_plane_width_subsampling);

@@ -43,6 +43,14 @@ public:
 //
 
 extern "C"
+int AVSC_CC avs_is_rgb48(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_BGR48) == AVS_CS_BGR48; }
+
+extern "C"
+int AVSC_CC avs_is_rgb64(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_BGR64) == AVS_CS_BGR64; }
+
+extern "C"
 int AVSC_CC avs_is_yv24(const AVS_VideoInfo * p)
   { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_YV24  & AVS_CS_PLANAR_FILTER); }
 
@@ -141,6 +149,26 @@ int AVSC_CC avs_is_yuv420ps(const AVS_VideoInfo * p)
 extern "C"
 int AVSC_CC avs_is_y32(const AVS_VideoInfo * p)
   { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_Y32   & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_gbrp(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_GBRP  & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_gbrp10(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_GBRP10 & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_gbrp12(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_GBRP12 & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_gbrp14(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_GBRP14 & AVS_CS_PLANAR_FILTER); }
+
+extern "C"
+int AVSC_CC avs_is_gbrp16(const AVS_VideoInfo * p)
+  { return (p->pixel_type & AVS_CS_PLANAR_MASK) == (AVS_CS_GBRP16 & AVS_CS_PLANAR_FILTER); }
 
 extern "C"
 int AVSC_CC avs_is_color_space(const AVS_VideoInfo * p, int c_space)
