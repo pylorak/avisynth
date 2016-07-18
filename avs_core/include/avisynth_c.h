@@ -308,8 +308,8 @@ AVSC_INLINE int avs_is_rgb32(const AVS_VideoInfo * p)
 AVSC_INLINE int avs_is_yuv(const AVS_VideoInfo * p) 
         { return !!(p->pixel_type&AVS_CS_YUV ); }
 
-AVSC_INLINE int avs_is_yuy2(const AVS_VideoInfo * p) 
-        { return (p->pixel_type & AVS_CS_YUY2) == AVS_CS_YUY2; }  
+AVSC_INLINE int avs_is_yuy2(const AVS_VideoInfo * p)
+        { return (p->pixel_type & AVS_CS_YUY2) == AVS_CS_YUY2; }
 
 AVSC_API(int, avs_is_rgb48)(const AVS_VideoInfo * p);
 
@@ -375,24 +375,24 @@ AVSC_API(int, avs_is_gbrp14)(const AVS_VideoInfo * p);
 
 AVSC_API(int, avs_is_gbrp16)(const AVS_VideoInfo * p);
 
-AVSC_INLINE int avs_is_property(const AVS_VideoInfo * p, int property) 
+AVSC_INLINE int avs_is_property(const AVS_VideoInfo * p, int property)
         { return ((p->image_type & property)==property ); }
 
-AVSC_INLINE int avs_is_planar(const AVS_VideoInfo * p) 
+AVSC_INLINE int avs_is_planar(const AVS_VideoInfo * p)
         { return !!(p->pixel_type & AVS_CS_PLANAR); }
 
 AVSC_API(int, avs_is_color_space)(const AVS_VideoInfo * p, int c_space);
-        
-AVSC_INLINE int avs_is_field_based(const AVS_VideoInfo * p) 
+
+AVSC_INLINE int avs_is_field_based(const AVS_VideoInfo * p)
         { return !!(p->image_type & AVS_IT_FIELDBASED); }
 
-AVSC_INLINE int avs_is_parity_known(const AVS_VideoInfo * p) 
+AVSC_INLINE int avs_is_parity_known(const AVS_VideoInfo * p)
         { return ((p->image_type & AVS_IT_FIELDBASED)&&(p->image_type & (AVS_IT_BFF | AVS_IT_TFF))); }
 
-AVSC_INLINE int avs_is_bff(const AVS_VideoInfo * p) 
+AVSC_INLINE int avs_is_bff(const AVS_VideoInfo * p)
         { return !!(p->image_type & AVS_IT_BFF); }
 
-AVSC_INLINE int avs_is_tff(const AVS_VideoInfo * p) 
+AVSC_INLINE int avs_is_tff(const AVS_VideoInfo * p)
         { return !!(p->image_type & AVS_IT_TFF); }
 
 AVSC_API(int, avs_get_plane_width_subsampling)(const AVS_VideoInfo * p, int plane);
