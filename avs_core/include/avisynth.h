@@ -417,6 +417,9 @@ Code Bits Remark      Classic_RGB  YUV  YUY2  Y_Grey Planar_RGB*
 
     CS_Sample_Bits_Mask  = 7 << CS_Shift_Sample_Bits,
     CS_Sample_Bits_8     = 0 << CS_Shift_Sample_Bits,
+    CS_Sample_Bits_10    = 5 << CS_Shift_Sample_Bits,
+    CS_Sample_Bits_12    = 6 << CS_Shift_Sample_Bits,
+    CS_Sample_Bits_14    = 7 << CS_Shift_Sample_Bits,
     CS_Sample_Bits_16    = 1 << CS_Shift_Sample_Bits,
     CS_Sample_Bits_32    = 2 << CS_Shift_Sample_Bits,
 
@@ -432,6 +435,8 @@ Code Bits Remark      Classic_RGB  YUV  YUY2  Y_Grey Planar_RGB*
 //  CS_YV12  = 1<<3  Reserved
 //  CS_I420  = 1<<4  Reserved
     CS_RAW32 = 1<<5 | CS_INTERLEAVED,
+    CS_BGR48 = 1<<6 | CS_BGR | CS_INTERLEAVED | CS_Sample_Bits_16,
+    CS_BGR64 = 1<<7 | CS_BGR | CS_INTERLEAVED | CS_Sample_Bits_16,
 
 //  YV12 must be 0xA000008 2.5 Baked API will see all new planar as YV12
 //  I420 must be 0xA000010
@@ -448,12 +453,33 @@ Code Bits Remark      Classic_RGB  YUV  YUY2  Y_Grey Planar_RGB*
 
     //-------------------------
     // AVS16: new planar constants go live! Experimental PF 160613 
+    CS_YUV444P10 = CS_PLANAR | CS_YUV | CS_Sample_Bits_10 | CS_VPlaneFirst | CS_Sub_Height_1 | CS_Sub_Width_1, // YUV 4:4:4 10bit samples
+    CS_YUV422P10 = CS_PLANAR | CS_YUV | CS_Sample_Bits_10 | CS_VPlaneFirst | CS_Sub_Height_1 | CS_Sub_Width_2, // YUV 4:2:2 10bit samples
+    CS_YUV420P10 = CS_PLANAR | CS_YUV | CS_Sample_Bits_10 | CS_VPlaneFirst | CS_Sub_Height_2 | CS_Sub_Width_2, // YUV 4:2:0 10bit samples
+
+    // grey 10
+    CS_Y10 = CS_PLANAR | CS_INTERLEAVED | CS_YUV | CS_Sample_Bits_10,                                          // Y   4:0:0 10bit samples
+
+    CS_YUV444P12 = CS_PLANAR | CS_YUV | CS_Sample_Bits_12 | CS_VPlaneFirst | CS_Sub_Height_1 | CS_Sub_Width_1, // YUV 4:4:4 12bit samples
+    CS_YUV422P12 = CS_PLANAR | CS_YUV | CS_Sample_Bits_12 | CS_VPlaneFirst | CS_Sub_Height_1 | CS_Sub_Width_2, // YUV 4:2:2 12bit samples
+    CS_YUV420P12 = CS_PLANAR | CS_YUV | CS_Sample_Bits_12 | CS_VPlaneFirst | CS_Sub_Height_2 | CS_Sub_Width_2, // YUV 4:2:0 12bit samples
+
+    // grey 12
+    CS_Y12 = CS_PLANAR | CS_INTERLEAVED | CS_YUV | CS_Sample_Bits_12,                                          // Y   4:0:0 12bit samples
+
+    CS_YUV444P14 = CS_PLANAR | CS_YUV | CS_Sample_Bits_14 | CS_VPlaneFirst | CS_Sub_Height_1 | CS_Sub_Width_1, // YUV 4:4:4 14bit samples
+    CS_YUV422P14 = CS_PLANAR | CS_YUV | CS_Sample_Bits_14 | CS_VPlaneFirst | CS_Sub_Height_1 | CS_Sub_Width_2, // YUV 4:2:2 14bit samples
+    CS_YUV420P14 = CS_PLANAR | CS_YUV | CS_Sample_Bits_14 | CS_VPlaneFirst | CS_Sub_Height_2 | CS_Sub_Width_2, // YUV 4:2:0 14bit samples
+
+    // grey 14
+    CS_Y14 = CS_PLANAR | CS_INTERLEAVED | CS_YUV | CS_Sample_Bits_14,                                          // Y   4:0:0 14bit samples
+
     CS_YUV444P16 = CS_PLANAR | CS_YUV | CS_Sample_Bits_16 | CS_VPlaneFirst | CS_Sub_Height_1 | CS_Sub_Width_1, // YUV 4:4:4 16bit samples
     CS_YUV422P16 = CS_PLANAR | CS_YUV | CS_Sample_Bits_16 | CS_VPlaneFirst | CS_Sub_Height_1 | CS_Sub_Width_2, // YUV 4:2:2 16bit samples
     CS_YUV420P16 = CS_PLANAR | CS_YUV | CS_Sample_Bits_16 | CS_VPlaneFirst | CS_Sub_Height_2 | CS_Sub_Width_2, // YUV 4:2:0 16bit samples
 
     // grey 16
-    CS_Y16 = CS_PLANAR | CS_INTERLEAVED | CS_YUV | CS_Sample_Bits_16,                                      // Y   4:0:0 16bit samples
+    CS_Y16 = CS_PLANAR | CS_INTERLEAVED | CS_YUV | CS_Sample_Bits_16,                                          // Y   4:0:0 16bit samples
 
     // 32 bit samples (float)
     CS_YUV444PS = CS_PLANAR | CS_YUV | CS_Sample_Bits_32 | CS_VPlaneFirst | CS_Sub_Height_1 | CS_Sub_Width_1, // YUV 4:4:4 32bit samples
@@ -461,9 +487,14 @@ Code Bits Remark      Classic_RGB  YUV  YUY2  Y_Grey Planar_RGB*
     CS_YUV420PS = CS_PLANAR | CS_YUV | CS_Sample_Bits_32 | CS_VPlaneFirst | CS_Sub_Height_2 | CS_Sub_Width_2, // YUV 4:2:0 32bit samples
 
     // grey 32
-    CS_Y32 = CS_PLANAR | CS_INTERLEAVED | CS_YUV | CS_Sample_Bits_32,                                      // Y   4:0:0 32bit samples
+    CS_Y32 = CS_PLANAR | CS_INTERLEAVED | CS_YUV | CS_Sample_Bits_32,                                         // Y   4:0:0 32bit samples
 
-    // todo: rgb
+    // planar rgb
+    CS_GBRP = CS_PLANAR | CS_BGR | CS_Sample_Bits_8,                                                          // Planar RGB
+    CS_GBRP10 = CS_PLANAR | CS_BGR | CS_Sample_Bits_10,                                                       // Planar RGB 10-bit
+    CS_GBRP12 = CS_PLANAR | CS_BGR | CS_Sample_Bits_12,                                                       // Planar RGB 12-bit
+    CS_GBRP14 = CS_PLANAR | CS_BGR | CS_Sample_Bits_14,                                                       // Planar RGB 14-bit
+    CS_GBRP16 = CS_PLANAR | CS_BGR | CS_Sample_Bits_16                                                       // Planar RGB 16-bit
 
 /*
 
