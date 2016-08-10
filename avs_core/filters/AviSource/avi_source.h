@@ -40,7 +40,7 @@
 // AVI Decompressors require 4bytes aligned buffer with minimum padding or no padding buffer.
 // Therefore, PVideoFrame shouldn't be used as those.
 
-class TemporalBuffer { // do not new this class.
+class TemporalBuffer {
   void* orig;
   BYTE* pY;
   BYTE* pV;
