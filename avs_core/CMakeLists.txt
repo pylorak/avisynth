@@ -63,3 +63,11 @@ ADD_CUSTOM_TARGET(
                      -P ${CMAKE_CURRENT_SOURCE_DIR}/Version.cmake
 )
 ADD_DEPENDENCIES("AvsCore" VersionGen)
+
+set(LIB_INSTALL_DIR lib CACHE STRING "Install location of libraries")
+
+INSTALL(TARGETS AvsCore
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/${LIB_INSTALL_DIR}")
+
+INSTALL(DIRECTORY "include/"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/include/avisynth")
