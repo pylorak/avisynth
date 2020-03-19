@@ -9,13 +9,15 @@ else()
 endif()
 
 # Create library
-project("AvsCore")
+project("AvsCore" VERSION "${PROJECT_VERSION}" LANGUAGES CXX)
 Include("Files.cmake")
 add_library("AvsCore" SHARED ${AvsCore_Sources})
 set_target_properties("AvsCore" PROPERTIES "OUTPUT_NAME" "${CoreName}")
 if (MINGW)
   set_target_properties("AvsCore" PROPERTIES PREFIX "")
   set_target_properties("AvsCore" PROPERTIES IMPORT_PREFIX "")
+elseif(UNIX)
+  set_target_properties("AvsCore" PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${AVISYNTH_INTERFACE_VERSION})
 endif()
 
 # Automatically group source files according to directory structure
@@ -138,14 +140,6 @@ ADD_CUSTOM_TARGET(
 ADD_DEPENDENCIES("AvsCore" VersionGen)
 
 # Generate pkg-config file
-file(READ "core/version.h.in" versioning)
-string(REGEX MATCH "AVS_MAJOR_VER     ([0-9]*)" _ ${versioning})
-set(version_major ${CMAKE_MATCH_1})
-string(REGEX MATCH "AVS_MINOR_VER     ([0-9]*)" _ ${versioning})
-set(version_minor ${CMAKE_MATCH_1})
-string(REGEX MATCH "AVS_BUGFIX_VER    ([0-9]*)" _ ${versioning})
-set(version_bugfix ${CMAKE_MATCH_1})
-set(AVS_VERSION "${version_major}.${version_minor}.${version_bugfix}")
 get_target_property(LIB_NAME AvsCore OUTPUT_NAME)
 set(LIBS "-l${LIB_NAME}")
 CONFIGURE_FILE("avisynth.pc.in" "avisynth.pc" @ONLY)
