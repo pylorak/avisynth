@@ -98,6 +98,9 @@
 #elif defined(__APPLE__)
 #   define AVS_MACOS
 #   define AVS_POSIX
+#elif defined(__HAIKU__)
+#   define AVS_HAIKU
+#   define AVS_POSIX
 #else
 #   error Operating system unsupported.
 #endif
