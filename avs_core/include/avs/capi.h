@@ -105,6 +105,7 @@
 #  define AVSC_API(ret, name) EXTERN_C ret AVSC_CC name
 #endif
 #else
+#  define AVSC_EXPORT EXTERN_C __declspec(dllexport)
 #  ifndef AVS_STATIC_LIB
 #    define AVSC_IMPORT __declspec(dllimport)
 #  else
