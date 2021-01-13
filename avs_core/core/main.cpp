@@ -274,24 +274,35 @@ private:
   HRESULT Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples);
 };
 
+void AvsAllocTls() {
 
+#ifdef XP_TLS
+  if ((dwTlsIndex = TlsAlloc()) == TLS_OUT_OF_INDEXES)
+    throw("Avisynth DLL load: TlsAlloc failed");
+  _RPT1(0, "DllMain: TlsAlloc: dwTlsIndex=0x%x\n", dwTlsIndex);
+#endif
+}
+
+void AvsFreeTls() {
+
+#ifdef XP_TLS
+    _RPT1(0, "DllMain: TlsFree: dwTlsIndex=0x%x\n", dwTlsIndex);
+    TlsFree(dwTlsIndex);
+    dwTlsIndex = 0;
+#endif
+}
+
+#ifndef AVS_STATIC_LIB
 BOOL APIENTRY DllMain(HANDLE hModule, ULONG ulReason, LPVOID lpReserved) {
 
   _RPT4(0,"DllMain: hModule=0x%08x, ulReason=%x, lpReserved=0x%08x, gRefCnt = %ld\n",
     hModule, ulReason, lpReserved, gRefCnt);
 
-#ifdef XP_TLS
   if (ulReason == DLL_PROCESS_ATTACH) {
-    if ((dwTlsIndex = TlsAlloc()) == TLS_OUT_OF_INDEXES)
-      throw("Avisynth DLL load: TlsAlloc failed");
-    _RPT1(0, "DllMain: TlsAlloc: dwTlsIndex=0x%x\n", dwTlsIndex);
+    AvsAllocTls();
+  } else if (ulReason == DLL_PROCESS_DETACH) {
+    AvsFreeTls();
   }
-  else if (ulReason == DLL_PROCESS_DETACH) {
-    _RPT1(0, "DllMain: TlsFree: dwTlsIndex=0x%x\n", dwTlsIndex);
-    TlsFree(dwTlsIndex);
-    dwTlsIndex = 0;
-  }
-#endif
 
   return TRUE;
 }
@@ -316,7 +327,7 @@ STDAPI DllCanUnloadNow() {
 
   return gRefCnt ? S_FALSE : S_OK;
 }
-
+#endif
 
 ///////////////////////////////////////////////////////////////////////////
 //
