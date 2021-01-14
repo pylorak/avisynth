@@ -274,7 +274,7 @@ private:
   HRESULT Read2(LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, LONG *plBytes, LONG *plSamples);
 };
 
-void AvsAllocTls() {
+AVSC_API(void, AvsAllocTls)() {
 
 #ifdef XP_TLS
   if ((dwTlsIndex = TlsAlloc()) == TLS_OUT_OF_INDEXES)
@@ -283,7 +283,7 @@ void AvsAllocTls() {
 #endif
 }
 
-void AvsFreeTls() {
+AVSC_API(void, AvsFreeTls)() {
 
 #ifdef XP_TLS
     _RPT1(0, "DllMain: TlsFree: dwTlsIndex=0x%x\n", dwTlsIndex);
