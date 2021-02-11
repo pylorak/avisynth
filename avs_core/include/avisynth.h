@@ -1902,11 +1902,6 @@ AVSC_API(IScriptEnvironment*, CreateScriptEnvironment)(int version = AVISYNTH_IN
 #include "avs/capi.h"
 AVSC_API(IScriptEnvironment2*, CreateScriptEnvironment2)(int version = AVISYNTH_INTERFACE_VERSION);
 
-#ifdef AVS_STATIC_LIB
-AVSC_API(void, AvsAllocTls)();
-AVSC_API(void, AvsFreeTls)();
-#endif
-
 #ifndef BUILDING_AVSCORE
 #undef AVS_UNUSED
 #endif
