@@ -4172,6 +4172,21 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
           float q = bitsPerComponent == 32 ? 16.0f / 255 : (16 << (bitsPerComponent - 8)); // scale luma min 16
           LOAD_OP(opLoadConst, q, 0);
         }
+        else if (tokens[i].substr(0, 5) == "yfmin") // avs+
+        {
+          int loadIndex = -1;
+          std::string toFind = "yfmin";
+          if (tokens[i].substr(0, toFind.length()) == toFind)
+            loadIndex = getSuffix(tokens[i], toFind);
+          if (loadIndex < 0)
+            env->ThrowError("Expr: Error in built-in constant expression '%s'", tokens[i].c_str());
+          if (loadIndex >= numInputs)
+            env->ThrowError("Expr: Too few input clips supplied for reference '%s'", tokens[i].c_str());
+
+          int bitsPerComponent = getEffectiveBitsPerComponent(vi[loadIndex]->BitsPerComponent(), autoconv_conv_float, autoconv_conv_int, autoScaleSourceBitDepth);
+          float q = bitsPerComponent == 32 ? 16.0f / 255 : bitsPerComponent == 10 ? 64 : bitsPerComponent == 12 ? 257 : bitsPerComponent == 14 ? 1028 : bitsPerComponent == 16 ? 4112 : 16;
+          LOAD_OP(opLoadConst, q, 0);
+        }
         else if (tokens[i].substr(0, 4) == "ymax") // avs+
         {
           int loadIndex = -1;
@@ -4185,6 +4200,21 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
 
           int bitsPerComponent = getEffectiveBitsPerComponent(vi[loadIndex]->BitsPerComponent(), autoconv_conv_float, autoconv_conv_int, autoScaleSourceBitDepth);
           float q = bitsPerComponent == 32 ? 235.0f / 255 : (235 << (bitsPerComponent - 8)); // scale luma max 235
+          LOAD_OP(opLoadConst, q, 0);
+        }
+        else if (tokens[i].substr(0, 5) == "yfmax") // avs+
+        {
+          int loadIndex = -1;
+          std::string toFind = "yfmax";
+          if (tokens[i].substr(0, toFind.length()) == toFind)
+            loadIndex = getSuffix(tokens[i], toFind);
+          if (loadIndex < 0)
+            env->ThrowError("Expr: Error in built-in constant expression '%s'", tokens[i].c_str());
+          if (loadIndex >= numInputs)
+            env->ThrowError("Expr: Too few input clips supplied for reference '%s'", tokens[i].c_str());
+
+          int bitsPerComponent = getEffectiveBitsPerComponent(vi[loadIndex]->BitsPerComponent(), autoconv_conv_float, autoconv_conv_int, autoScaleSourceBitDepth);
+          float q = bitsPerComponent == 32 ? 235.0f / 255 : bitsPerComponent == 10 ? 1175 : bitsPerComponent == 12 ? 3995 : bitsPerComponent == 14 ? 15275 : bitsPerComponent == 16 ? 60395 : 235;
           LOAD_OP(opLoadConst, q, 0);
         }
         else if (tokens[i].substr(0, 4) == "cmin") // avs+
@@ -4206,6 +4236,25 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
 #endif
           LOAD_OP(opLoadConst, q, 0);
         }
+        else if (tokens[i].substr(0, 5) == "cfmin") // avs+
+        {
+          int loadIndex = -1;
+          std::string toFind = "cfmin";
+          if (tokens[i].substr(0, toFind.length()) == toFind)
+            loadIndex = getSuffix(tokens[i], toFind);
+          if (loadIndex < 0)
+            env->ThrowError("Expr: Error in built-in constant expression '%s'", tokens[i].c_str());
+          if (loadIndex >= numInputs)
+            env->ThrowError("Expr: Too few input clips supplied for reference '%s'", tokens[i].c_str());
+
+          int bitsPerComponent = getEffectiveBitsPerComponent(vi[loadIndex]->BitsPerComponent(), autoconv_conv_float, autoconv_conv_int, autoScaleSourceBitDepth);
+
+          float q = bitsPerComponent == 32 ? uv8tof(16) : bitsPerComponent == 10 ? 64 : bitsPerComponent == 12 ? 257 : bitsPerComponent == 14 ? 1028 : bitsPerComponent == 16 ? 4112 : 16;
+#ifndef FLOAT_CHROMA_IS_HALF_CENTERED
+        if (shift_float && bitsPerComponent) q += 0.5f;
+#endif
+        LOAD_OP(opLoadConst, q, 0);
+        }
         else if (tokens[i].substr(0, 4) == "cmax") // avs+
         {
           int loadIndex = -1;
@@ -4223,6 +4272,24 @@ static size_t parseExpression(const std::string &expr, std::vector<ExprOp> &ops,
           if (shift_float && bitsPerComponent == 32) q += 0.5f;
 #endif
           LOAD_OP(opLoadConst, q, 0);
+        }
+        else if (tokens[i].substr(0, 5) == "cfmax") // avs+
+        {
+        int loadIndex = -1;
+        std::string toFind = "cfmax";
+        if (tokens[i].substr(0, toFind.length()) == toFind)
+            loadIndex = getSuffix(tokens[i], toFind);
+        if (loadIndex < 0)
+            env->ThrowError("Expr: Error in built-in constant expression '%s'", tokens[i].c_str());
+        if (loadIndex >= numInputs)
+            env->ThrowError("Expr: Too few input clips supplied for reference '%s'", tokens[i].c_str());
+
+        int bitsPerComponent = getEffectiveBitsPerComponent(vi[loadIndex]->BitsPerComponent(), autoconv_conv_float, autoconv_conv_int, autoScaleSourceBitDepth);
+        float q = bitsPerComponent == 32 ? uv8tof(240) : bitsPerComponent == 10 ? 1200 : bitsPerComponent == 12 ? 4080 : bitsPerComponent == 14 ? 15600 : bitsPerComponent == 16 ? 61680 : 240;
+#ifndef FLOAT_CHROMA_IS_HALF_CENTERED
+        if (shift_float && bitsPerComponent == 32) q += 0.5f;
+#endif
+        LOAD_OP(opLoadConst, q, 0);
         }
         else if (tokens[i].substr(0, 10) == "range_size") // avs+
         {
