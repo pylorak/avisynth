@@ -103,10 +103,12 @@ endif()
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Haiku")
     set(SYSLIB "root")
+elseif (CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
+    set(SYSLIB "m" "pthread")
 elseif(MSVC OR MINGW)
     set(SYSLIB "uuid" "winmm" "vfw32" "msacm32" "gdi32" "user32" "advapi32" "ole32" "imagehlp")
 else()
-    set(SYSLIB "pthread" "dl" "m")
+    set(SYSLIB "m" "pthread" "dl")
 endif()
 
 if (CMAKE_COMPILER_IS_GNUCXX)
